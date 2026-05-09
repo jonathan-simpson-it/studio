@@ -72,7 +72,7 @@ export default function TasksPage() {
           <Select value={filterPriority} onValueChange={setFilterPriority}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Priority" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="_all">All</SelectItem>
               {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
             </SelectContent>
           </Select>

@@ -69,8 +69,8 @@ export default function ProjectsPage() {
   }
 
   const filtered = projects.filter((p) => {
-    if (filterStatus && p.status !== filterStatus) return false;
-    if (filterClient && p.client_id !== filterClient) return false;
+    if (filterStatus && filterStatus !== '_all' && p.status !== filterStatus) return false;
+    if (filterClient && filterClient !== '_all' && p.client_id !== filterClient) return false;
     return p.name.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -85,7 +85,7 @@ export default function ProjectsPage() {
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="_all">All</SelectItem>
               {['Planning', 'In Progress', 'Waiting on Client', 'Review', 'Completed'].map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
@@ -94,7 +94,7 @@ export default function ProjectsPage() {
           <Select value={filterClient} onValueChange={setFilterClient}>
             <SelectTrigger className="w-36"><SelectValue placeholder="Client" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="_all">All</SelectItem>
               {clients.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
               ))}

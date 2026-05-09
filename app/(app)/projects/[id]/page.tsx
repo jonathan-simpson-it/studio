@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
@@ -279,7 +280,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <Button size="sm"><Plus className="mr-2 h-4 w-4" /> New Milestone</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>New Milestone</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>New Milestone</DialogTitle><DialogDescription>Create a new milestone for this project.</DialogDescription></DialogHeader>
               <MilestoneForm onSubmit={async (data) => {
                 const { error } = await supabase.from('milestones').insert({ ...data, project_id: project.id });
                 if (error) { toast.error(error.message); return; }
@@ -358,9 +359,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 }
 
 function TaskForm({ projectId, milestones, onSubmit }: { projectId: string; milestones: Milestone[]; onSubmit: (data: Partial<Task>) => Promise<void> }) {
-  const [form, setForm] = useState({ title: '', priority: 'Medium', status: 'Todo', milestone_id: '' });
+  const [form, setForm] = useState({ title: '', priority: 'Medium', status: 'Todo', milestone_id: '_none' });
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, project_id: projectId } as Partial<Task>); }} className="space-y-4 pt-4">
+    <form onSubmit={(e) => { e.preventDefault(); const milestoneId = form.milestone_id === '_none' ? null : form.milestone_id; onSubmit({ ...form, milestone_id: milestoneId, project_id: projectId } as Partial<Task>); }} className="space-y-4 pt-4">
       <div className="space-y-2">
         <Label>Title</Label>
         <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
@@ -380,7 +381,7 @@ function TaskForm({ projectId, milestones, onSubmit }: { projectId: string; mile
           <Select value={form.milestone_id} onValueChange={(v) => setForm({ ...form, milestone_id: v })}>
             <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="_none">None</SelectItem>
               {milestones.map((m) => (<SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>))}
             </SelectContent>
           </Select>

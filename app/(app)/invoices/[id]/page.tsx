@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -283,6 +284,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark as Paid</DialogTitle>
+            <DialogDescription>Record payment for this invoice. Optionally add payment notes.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Label>Payment Notes (optional)</Label>

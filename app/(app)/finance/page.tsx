@@ -228,9 +228,9 @@ export default function FinancePage() {
 }
 
 function CostForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: Partial<Cost>) => Promise<void> }) {
-  const [form, setForm] = useState({ category: 'Software', description: '', amount: 0, currency: 'HKD', date: new Date().toISOString().split('T')[0], client_id: '' });
+  const [form, setForm] = useState({ category: 'Software', description: '', amount: 0, currency: 'HKD', date: new Date().toISOString().split('T')[0], client_id: '_none' });
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, client_id: form.client_id || null } as Partial<Cost>); }} className="space-y-4 pt-4">
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, client_id: form.client_id === '_none' ? null : form.client_id } as Partial<Cost>); }} className="space-y-4 pt-4">
       <div className="space-y-2">
         <Label>Category</Label>
         <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
@@ -270,7 +270,7 @@ function CostForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: P
         <Select value={form.client_id} onValueChange={(v) => setForm({ ...form, client_id: v })}>
           <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="_none">None</SelectItem>
             {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>))}
           </SelectContent>
         </Select>
