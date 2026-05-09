@@ -4,8 +4,7 @@ import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { MonthView } from './MonthView';
-import { WeekView } from './WeekView';
-import { DayView } from './DayView';
+import { YearView } from './YearView';
 import { EventModal } from './EventModal';
 import { ExpenseWidget } from './ExpenseWidget';
 import type { CalendarEvent, Calendar } from '@/types';
@@ -17,21 +16,17 @@ import {
 import {
   addMonths,
   subMonths,
-  addWeeks,
-  subWeeks,
-  addDays,
-  subDays,
+  addYears,
+  subYears,
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  startOfDay,
-  endOfDay,
   format,
 } from 'date-fns';
 import { toast } from 'sonner';
 
-type CalendarView = 'month' | 'week' | 'day';
+type CalendarView = 'month' | 'year';
 
 export default function CalendarClient({ calendars: initCalendars, events: initEvents }: {
   calendars: Calendar[];
@@ -54,21 +49,14 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
     if (data) setEvents(data);
   }, [supabase]);
 
-  const loadCalendars = useCallback(async () => {
-    const { data } = await supabase.from('calendars').select('*').order('created_at');
-    if (data) setCalendars(data);
-  }, [supabase]);
-
   function navigatePrev() {
     if (view === 'month') setCurrentDate(subMonths(currentDate, 1));
-    else if (view === 'week') setCurrentDate(subWeeks(currentDate, 1));
-    else setCurrentDate(subDays(currentDate, 1));
+    else setCurrentDate(subYears(currentDate, 1));
   }
 
   function navigateNext() {
     if (view === 'month') setCurrentDate(addMonths(currentDate, 1));
-    else if (view === 'week') setCurrentDate(addWeeks(currentDate, 1));
-    else setCurrentDate(addDays(currentDate, 1));
+    else setCurrentDate(addYears(currentDate, 1));
   }
 
   function goToday() {
@@ -76,20 +64,9 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
   }
 
   function getDateRange(): { start: Date; end: Date } {
-    if (view === 'month') {
-      return {
-        start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
-        end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
-      };
-    } else if (view === 'week') {
-      return {
-        start: startOfWeek(currentDate, { weekStartsOn: 1 }),
-        end: endOfWeek(currentDate, { weekStartsOn: 1 }),
-      };
-    }
     return {
-      start: startOfDay(currentDate),
-      end: endOfDay(currentDate),
+      start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
+      end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
     };
   }
 
@@ -154,9 +131,7 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
   const titleText =
     view === 'month'
       ? format(currentDate, 'MMMM yyyy')
-      : view === 'week'
-        ? `${format(getDateRange().start, 'MMM d')} – ${format(getDateRange().end, 'MMM d, yyyy')}`
-        : format(currentDate, 'EEEE, MMMM d, yyyy');
+      : format(currentDate, 'yyyy');
 
   return (
     <div className="space-y-4">
@@ -165,7 +140,7 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
           <Button variant="outline" size="icon" onClick={navigatePrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold w-64 text-center">{titleText}</h2>
+          <h2 className="text-lg font-semibold w-48 text-center">{titleText}</h2>
           <Button variant="outline" size="icon" onClick={navigateNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -176,7 +151,7 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
 
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-lg border p-0.5">
-            {(['month', 'week', 'day'] as CalendarView[]).map((v) => (
+            {(['month', 'year'] as CalendarView[]).map((v) => (
               <Button
                 key={v}
                 variant={view === v ? 'default' : 'ghost'}
@@ -203,30 +178,18 @@ export default function CalendarClient({ calendars: initCalendars, events: initE
               calendars={calendars}
               selectedCalendars={selectedCalendars}
               onToggleCalendar={toggleCalendar}
-              onSelectDate={(d) => {
-                setCurrentDate(d);
-                setView('day');
-              }}
               onSelectEvent={openEdit}
               onCreateEvent={openCreate}
             />
           )}
-          {view === 'week' && (
-            <WeekView
+          {view === 'year' && (
+            <YearView
               date={currentDate}
               events={filteredEvents}
-              calendars={calendars}
-              onSelectEvent={openEdit}
-              onSelectSlot={(d) => openCreate(d)}
-            />
-          )}
-          {view === 'day' && (
-            <DayView
-              date={currentDate}
-              events={filteredEvents}
-              calendars={calendars}
-              onSelectEvent={openEdit}
-              onSelectSlot={(d) => openCreate(d)}
+              onSelectMonth={(d) => {
+                setCurrentDate(d);
+                setView('month');
+              }}
             />
           )}
         </div>

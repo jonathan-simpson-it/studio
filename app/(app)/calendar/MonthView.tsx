@@ -21,7 +21,6 @@ interface MonthViewProps {
   calendars: Calendar[];
   selectedCalendars: Set<string>;
   onToggleCalendar: (id: string) => void;
-  onSelectDate: (date: Date) => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateEvent: (date: Date) => void;
 }
@@ -32,7 +31,6 @@ export function MonthView({
   calendars,
   selectedCalendars,
   onToggleCalendar,
-  onSelectDate,
   onSelectEvent,
   onCreateEvent,
 }: MonthViewProps) {
@@ -95,7 +93,6 @@ export function MonthView({
                 !isCurrentMonth && 'bg-muted/30',
                 today && 'bg-blue-50/30 dark:bg-blue-950/20'
               )}
-              onClick={() => onSelectDate(day)}
             >
               <div className="flex items-center justify-between">
                 <button

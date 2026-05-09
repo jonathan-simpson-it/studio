@@ -39,7 +39,7 @@ const EXPENSE_CATEGORIES = [
 
 interface ExpenseWidgetProps {
   date: Date;
-  view: 'month' | 'week' | 'day';
+  view: 'month' | 'year';
 }
 
 export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
