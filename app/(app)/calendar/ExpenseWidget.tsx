@@ -21,8 +21,9 @@ import {
 } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { DollarSign, Plus, Trash2 } from 'lucide-react';
+import { DollarSign, Plus, Trash2, Sparkles } from 'lucide-react';
 import type { DailyExpense } from '@/types';
+import { parseExpense } from '@/lib/parser/nlp';
 
 const EXPENSE_CATEGORIES = [
   'Food',
@@ -46,6 +47,7 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
   const supabase = createClient();
   const [expenses, setExpenses] = useState<DailyExpense[]>([]);
   const [open, setOpen] = useState(false);
+  const [nlInput, setNlInput] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Other');
   const [note, setNote] = useState('');
@@ -65,6 +67,15 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
   useEffect(() => {
     loadExpenses();
   }, [date, view]);
+
+  function handleParse() {
+    if (!nlInput.trim()) return;
+    const result = parseExpense(nlInput);
+    if (result.amount) setAmount(result.amount.toString());
+    if (result.category) setCategory(result.category);
+    if (result.date) setExpenseDate(result.date);
+    if (result.note) setNote(result.note);
+  }
 
   async function addExpense() {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -87,6 +98,7 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
     setAmount('');
     setCategory('Other');
     setNote('');
+    setNlInput('');
     setOpen(false);
     loadExpenses();
   }
@@ -166,6 +178,24 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
               }}
               className="space-y-3 pt-2"
             >
+              <div className="space-y-2">
+                <Label>Natural language</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={nlInput}
+                    onChange={(e) => setNlInput(e.target.value)}
+                    placeholder="HK$150 lunch today"
+                    className="flex-1"
+                  />
+                  <Button type="button" variant="secondary" size="icon" onClick={handleParse}>
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Try: &quot;50 transport yesterday&quot; or &quot;HK$200 dinner last night with client&quot;
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input

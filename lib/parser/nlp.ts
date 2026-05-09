@@ -131,3 +131,91 @@ export function parseNaturalLanguage(input: string): ParsedEventInput {
 export function isParseConfident(result: ParsedEventInput): boolean {
   return result.confidence >= 0.3 && result.start !== null;
 }
+
+export interface ParsedExpenseInput {
+  amount: number | null;
+  category: string;
+  date: string | null;
+  note: string | null;
+  confidence: number;
+}
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  Food: ['lunch', 'dinner', 'breakfast', 'food', 'meal', 'coffee', 'tea', 'drink', 'snack', 'groceries', 'restaurant', 'cafe'],
+  Transport: ['transport', 'taxi', 'bus', 'mtr', 'uber', 'grab', 'fuel', 'gas', 'parking', 'toll', 'ferry', 'flight', 'train'],
+  Supplies: ['supplies', 'stationery', 'equipment', 'tools', 'materials'],
+  Software: ['software', 'subscription', 'saas', 'hosting', 'domain', 'api', 'licence', 'license'],
+  Travel: ['travel', 'hotel', 'accommodation', 'lodging', 'airbnb', 'booking'],
+  Entertainment: ['entertainment', 'movie', 'games', 'concert', 'event', 'ticket'],
+  Health: ['health', 'medical', 'doctor', 'pharmacy', 'medicine', 'gym', 'fitness'],
+  Education: ['education', 'course', 'training', 'book', 'books', 'tutorial', 'class'],
+  Utilities: ['utility', 'electricity', 'water', 'internet', 'phone', 'bill'],
+  Other: [],
+};
+
+function extractAmount(text: string): { amount: number | null; cleaned: string } {
+  const match = text.match(/(?:HK\$|HKD|\$)?\s*(\d+(?:\.\d{1,2})?)/i);
+  if (match) {
+    return {
+      amount: parseFloat(match[1]),
+      cleaned: text.replace(match[0], '').trim(),
+    };
+  }
+  return { amount: null, cleaned: text };
+}
+
+function extractCategory(text: string): { category: string; cleaned: string } {
+  const lower = text.toLowerCase();
+  let bestCategory = 'Other';
+  let bestIndex = Infinity;
+
+  for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const kw of keywords) {
+      const idx = lower.indexOf(kw);
+      if (idx !== -1 && idx < bestIndex) {
+        bestIndex = idx;
+        bestCategory = cat;
+      }
+    }
+  }
+
+  if (bestCategory !== 'Other') {
+    const cleaned = text.replace(new RegExp(Object.values(CATEGORY_KEYWORDS).flat().join('|'), 'gi'), '').trim();
+    return { category: bestCategory, cleaned };
+  }
+
+  return { category: 'Other', cleaned: text };
+}
+
+export function parseExpense(input: string): ParsedExpenseInput {
+  let text = input.trim();
+  let confidence = 0;
+
+  const { amount, cleaned: afterAmount } = extractAmount(text);
+  text = afterAmount;
+  if (amount) confidence += 0.4;
+
+  const { category, cleaned: afterCategory } = extractCategory(text);
+  text = afterCategory;
+  if (category !== 'Other') confidence += 0.2;
+
+  const chronoResults = chrono.parse(text, undefined, { forwardDate: true });
+  let date: string | null = null;
+
+  if (chronoResults.length > 0) {
+    const d = chronoResults[0].start?.date();
+    if (d) {
+      date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      text = text.replace(chronoResults[0].text, '').trim();
+      confidence += 0.3;
+    }
+  }
+
+  return {
+    amount,
+    category,
+    date,
+    note: text || null,
+    confidence: Math.min(confidence, 1),
+  };
+}
