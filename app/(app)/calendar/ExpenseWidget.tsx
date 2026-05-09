@@ -155,7 +155,7 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
               <Plus className="mr-2 h-3 w-3" /> Add Expense
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-sm" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Add Daily Expense</DialogTitle>
             </DialogHeader>

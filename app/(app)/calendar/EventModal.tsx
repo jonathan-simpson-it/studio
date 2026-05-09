@@ -168,7 +168,7 @@ export function EventModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{event ? 'Edit Event' : 'New Event'}</DialogTitle>
         </DialogHeader>
