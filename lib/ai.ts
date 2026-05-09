@@ -1,9 +1,53 @@
-import type { AIActionType, AIActionContext } from '@/types';
+import type { AIActionType, AIModelKey } from '@/types';
 
-const DEEPSEEK_MODEL = 'deepseek-chat';
+// ============================================================
+// MODEL REGISTRY
+// ============================================================
+
+export const MODEL_REGISTRY: Record<AIModelKey, string> = {
+  default: 'openai/gpt-oss-120b:free',
+  longform: 'nvidia/nemotron-3-super:free',
+  structured: 'minimax/minimax-m2.5:free',
+  multilingual: 'google/gemma-4-31b:free',
+  fast: 'z-ai/glm-4.5-air:free',
+};
+
+const ACTION_MODEL_MAP: Record<string, AIModelKey> = {
+  'draft-email': 'default',
+  'generate-proposal': 'longform',
+  'generate-invoice': 'structured',
+  'generate-monthly-report': 'longform',
+  'generate-audit': 'longform',
+  'generate-follow-up-email': 'fast',
+  'generate-multilingual-email': 'multilingual',
+  'autofill-note': 'fast',
+  'autofill-task-description': 'fast',
+  'generate-project-summary': 'default',
+  'generate-tool-documentation': 'structured',
+  'create-github-issue': 'fast',
+};
+
+function resolveModel(action: AIActionType): string {
+  const key = ACTION_MODEL_MAP[action] || 'default';
+  return MODEL_REGISTRY[key];
+}
+
+function resolveModelKey(action: AIActionType): AIModelKey {
+  return ACTION_MODEL_MAP[action] || 'default';
+}
+
+export { resolveModelKey };
+
+// ============================================================
+// SYSTEM PROMPTS
+// ============================================================
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  'generate-proposal': `You are a proposal writer for Jonathon Simpson & Co., a Hong Kong-based software and automation agency. 
+  'draft-email': `You are a client communications specialist for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
+Draft a professional email. Include a subject line, greeting, body, and professional signature.
+Tone: professional, direct, modern.`,
+
+  'generate-proposal': `You are a proposal writer for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
 Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.
 Tone: professional, direct, modern.
 Generate a complete proposal with: cover note, scope of work, timeline, line items (service, description, quantity, unit_price), payment terms.`,
@@ -31,27 +75,60 @@ Tone: professional, direct, modern.`,
   'create-github-issue': `You are a developer for Jonathon Simpson & Co.
 Generate a GitHub issue body with: problem description, acceptance criteria, technical notes, and suggested labels.
 Tone: professional, direct, modern.`,
+
+  'generate-follow-up-email': `You are a client communications specialist for Jonathon Simpson & Co.
+Write a short follow-up email referencing the previous conversation or proposal. Keep to 3–5 sentences. Professional and friendly.
+Tone: professional, direct, modern.`,
+
+  'generate-multilingual-email': `You are a multilingual communications specialist for Jonathon Simpson & Co.
+Translate the given email content into the requested language with cultural appropriateness. Maintain the professional tone of the original.
+Tone: professional, direct, modern.`,
+
+  'autofill-note': `You are an assistant for Jonathon Simpson & Co.
+Summarise the given context into concise markdown notes with bullet points. Capture key facts, decisions, and action items.
+Tone: professional, direct, modern.`,
+
+  'autofill-task-description': `You are a project manager for Jonathon Simpson & Co.
+Write a clear task description with acceptance criteria based on the given context. Use markdown.
+Tone: professional, direct, modern.`,
 };
 
 const SYSTEM_CONTEXT = `Agency: Jonathon Simpson & Co.
 Location: Hong Kong
 Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.`;
 
-async function generateDeepSeek(
-  action: AIActionType,
-  context: Record<string, unknown>
-): Promise<string> {
-  const systemPrompt = SYSTEM_PROMPTS[action] || SYSTEM_PROMPTS['generate-tool-documentation'];
-  const contextStr = JSON.stringify(context, null, 2);
+// ============================================================
+// OPENROUTER FETCH
+// ============================================================
 
-  const response = await fetch(`${process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'}/chat/completions`, {
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+interface OpenRouterResponse {
+  choices: Array<{ message: { content: string } }>;
+}
+
+async function callOpenRouter(
+  action: AIActionType,
+  context: Record<string, unknown>,
+  modelOverride?: string
+): Promise<{ content: string; modelUsed: string; latencyMs: number }> {
+  const model = modelOverride || resolveModel(action);
+  const systemPrompt = SYSTEM_PROMPTS[action] || SYSTEM_PROMPTS['autofill-note'];
+  const contextStr = JSON.stringify(context, null, 2);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://studio.jonathansimpson.co';
+
+  const start = performance.now();
+
+  const response = await fetch(OPENROUTER_BASE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'HTTP-Referer': appUrl,
+      'X-Title': 'Studio — JSCo',
     },
     body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
+      model,
       messages: [
         { role: 'system', content: `${systemPrompt}\n\n${SYSTEM_CONTEXT}` },
         { role: 'user', content: `Generate content based on this context:\n\n${contextStr}` },
@@ -61,26 +138,86 @@ async function generateDeepSeek(
     }),
   });
 
+  const latencyMs = Math.round(performance.now() - start);
+
   if (!response.ok) {
-    throw new Error(`DeepSeek API error: ${response.status} ${response.statusText}`);
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`OpenRouter error (${response.status}): ${errBody || response.statusText}`);
   }
 
-  const data = await response.json();
-  return data.choices[0].message.content;
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('OpenRouter returned empty response');
+  }
+
+  return { content, modelUsed: model, latencyMs };
 }
+
+// ============================================================
+// PUBLIC API
+// ============================================================
 
 export async function generateAIContent(
   action: AIActionType,
   context: Record<string, unknown>
 ): Promise<string> {
-  const provider = process.env.AI_PROVIDER || 'deepseek';
+  const { content } = await callOpenRouter(action, context);
+  return content;
+}
 
-  switch (provider) {
-    case 'deepseek':
-      return generateDeepSeek(action, context);
-    default:
-      throw new Error(`Unknown AI provider: ${provider}`);
+export async function generateWithFallback(
+  action: AIActionType,
+  context: Record<string, unknown>
+): Promise<{ content: string; modelUsed: string; latencyMs: number; fallbackUsed: boolean }> {
+  try {
+    const result = await callOpenRouter(action, context);
+    return { ...result, fallbackUsed: false };
+  } catch (primaryError) {
+    console.warn(`Primary model failed for action "${action}", falling back to fast:`, primaryError);
+    const result = await callOpenRouter(action, context, MODEL_REGISTRY.fast);
+    return { ...result, fallbackUsed: true };
   }
 }
 
-export type { AIActionType };
+export async function testModel(modelKey: AIModelKey): Promise<{ ok: boolean; modelUsed: string; latencyMs: number }> {
+  const modelName = MODEL_REGISTRY[modelKey];
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://studio.jonathansimpson.co';
+
+  const start = performance.now();
+
+  const response = await fetch(OPENROUTER_BASE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'HTTP-Referer': appUrl,
+      'X-Title': 'Studio — JSCo',
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        { role: 'user', content: 'Reply with exactly one word: OK' },
+      ],
+      temperature: 0,
+      max_tokens: 10,
+    }),
+  });
+
+  const latencyMs = Math.round(performance.now() - start);
+
+  if (!response.ok) {
+    return { ok: false, modelUsed: modelName, latencyMs };
+  }
+
+  return { ok: true, modelUsed: modelName, latencyMs };
+}
+
+export function getActionModelMap(): Record<string, { modelKey: AIModelKey; modelName: string }> {
+  const map: Record<string, { modelKey: AIModelKey; modelName: string }> = {};
+  for (const [action, key] of Object.entries(ACTION_MODEL_MAP)) {
+    map[action] = { modelKey: key, modelName: MODEL_REGISTRY[key] };
+  }
+  return map;
+}

@@ -432,7 +432,7 @@ CREATE POLICY "founders_all_agency_settings" ON agency_settings
 -- ============================================================
 CREATE TABLE integrations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  service text UNIQUE NOT NULL CHECK (service IN ('github', 'resend', 'deepseek')),
+  service text UNIQUE NOT NULL CHECK (service IN ('github', 'resend', 'openrouter')),
   encrypted_key text NOT NULL,
   extra_config jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz DEFAULT now() NOT NULL,

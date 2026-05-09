@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import type { AIActionType } from '@/types';
 
-const AI_ACTIONS = [
+const AI_ACTIONS: AIActionType[] = [
   'generate-proposal',
   'generate-invoice',
   'generate-project-summary',
@@ -9,7 +10,12 @@ const AI_ACTIONS = [
   'generate-audit',
   'generate-tool-documentation',
   'create-github-issue',
-] as const;
+  'draft-email',
+  'generate-follow-up-email',
+  'generate-multilingual-email',
+  'autofill-note',
+  'autofill-task-description',
+];
 
 export async function POST(request: NextRequest) {
   const supabase = await createServer();
@@ -19,16 +25,22 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { action, context } = body;
+  const { action, context, useFallback } = body;
 
   if (!AI_ACTIONS.includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   }
 
   try {
-    const { generateAIContent } = await import('@/lib/ai');
-    const content = await generateAIContent(action as any, context);
-    return NextResponse.json({ content });
+    const { generateWithFallback } = await import('@/lib/ai');
+    const result = await generateWithFallback(action as AIActionType, context || {});
+
+    return NextResponse.json({
+      content: result.content,
+      modelUsed: result.modelUsed,
+      latencyMs: result.latencyMs,
+      fallbackUsed: result.fallbackUsed,
+    });
   } catch (error) {
     console.error('AI generation error:', error);
     return NextResponse.json(

@@ -73,9 +73,7 @@ Add ALL variables from `.env.local` to Vercel:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GITHUB_TOKEN`
 - `GITHUB_ORG`
-- `DEEPSEEK_API_KEY`
-- `DEEPSEEK_BASE_URL` (default: `https://api.deepseek.com`)
-- `AI_PROVIDER` (default: `deepseek`)
+- `OPENROUTER_API_KEY`
 - `RESEND_API_KEY`
 - `EMAIL_FROM` (default: `studio@jonathansimpson.co`)
 - `ENCRYPTION_KEY` (generate a 32-byte hex string)
@@ -104,12 +102,12 @@ Add ALL variables from `.env.local` to Vercel:
 3. Create an API key and add it to Vercel as `RESEND_API_KEY`
 4. Add the API key in the app: Settings → Integrations → Resend
 
-### 3.2 DeepSeek
-1. Create an account at [platform.deepseek.com](https://platform.deepseek.com)
-2. Generate an API key
-3. Add it to Vercel as `DEEPSEEK_API_KEY`
-4. Add the API key in the app: Settings → Integrations → DeepSeek
-5. Click "Test Connection" to verify
+### 3.2 OpenRouter
+1. Create an account at [openrouter.ai](https://openrouter.ai)
+2. Generate an API key from the dashboard
+3. Add it to Vercel as `OPENROUTER_API_KEY`
+4. Add the API key in the app: Settings → Integrations → OpenRouter
+5. Use the per-model **Ping** buttons in Settings → Integrations → AI Models to verify each model responds
 
 ### 3.3 GitHub
 1. Create a GitHub Personal Access Token (classic) with `repo` scope

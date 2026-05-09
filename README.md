@@ -20,7 +20,7 @@ An internal agency operating system for Jonathon Simpson & Co., a two-founder so
 ├──────────────────────────────────────────────────────┤
 │  GitHub REST API (issues, milestones, repos)         │
 │  Resend (invoice/proposal email with PDF)            │
-│  DeepSeek V4 API (proposal, invoice, report gen)     │
+│  OpenRouter (5 free-tier models, unified API)         │
 │  @react-pdf/renderer (PDF generation)                │
 └──────────────────────────────────────────────────────┘
 ```
@@ -59,9 +59,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=      # From Supabase dashboard → Settings → A
 SUPABASE_SERVICE_ROLE_KEY=          # From Supabase dashboard → Settings → API
 GITHUB_TOKEN=                       # Personal Access Token with repo scope
 GITHUB_ORG=                         # Your GitHub org name
-DEEPSEEK_API_KEY=                   # From platform.deepseek.com
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-AI_PROVIDER=deepseek
+OPENROUTER_API_KEY=                 # From openrouter.ai
 RESEND_API_KEY=                     # From resend.com
 EMAIL_FROM=studio@jonathansimpson.co
 ENCRYPTION_KEY=                     # Generate: openssl rand -hex 32
@@ -208,9 +206,7 @@ On screens under 768px, the sidebar collapses and a bottom tab bar appears (Dash
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service_role key (cron jobs only) |
 | `GITHUB_TOKEN` | Yes (if using GitHub) | GitHub PAT with repo scope |
 | `GITHUB_ORG` | No | GitHub organization name for repo selector |
-| `DEEPSEEK_API_KEY` | Yes (if using AI) | DeepSeek API key |
-| `DEEPSEEK_BASE_URL` | No | Default: `https://api.deepseek.com` |
-| `AI_PROVIDER` | No | Default: `deepseek` |
+| `OPENROUTER_API_KEY` | Yes (if using AI) | OpenRouter API key |
 | `RESEND_API_KEY` | Yes (if using email) | Resend API key |
 | `EMAIL_FROM` | No | Default: `studio@jonathansimpson.co` |
 | `ENCRYPTION_KEY` | Yes (if storing API keys) | 32-byte hex for AES-256-GCM |

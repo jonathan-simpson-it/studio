@@ -17,6 +17,8 @@ export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
 export type MilestoneStatus = 'Open' | 'In Progress' | 'Completed';
 export type ApiKeyScope = 'read' | 'write' | 'full';
 
+export type AIModelKey = 'default' | 'longform' | 'structured' | 'multilingual' | 'fast';
+
 export type AIActionType =
   | 'generate-proposal'
   | 'generate-invoice'
@@ -24,7 +26,12 @@ export type AIActionType =
   | 'generate-monthly-report'
   | 'generate-audit'
   | 'generate-tool-documentation'
-  | 'create-github-issue';
+  | 'create-github-issue'
+  | 'draft-email'
+  | 'generate-follow-up-email'
+  | 'generate-multilingual-email'
+  | 'autofill-note'
+  | 'autofill-task-description';
 
 // ============================================================
 // ENTITY TYPES
@@ -287,7 +294,7 @@ export interface AgencySettings {
 
 export interface Integration {
   id: string;
-  service: 'github' | 'resend' | 'deepseek';
+  service: 'github' | 'resend' | 'openrouter';
   encrypted_key: string;
   extra_config: Record<string, unknown>;
   created_at: string;

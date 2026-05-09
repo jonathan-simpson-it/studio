@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Loader2, Sparkles } from 'lucide-react';
 
 const TIMEZONES = [
   'Asia/Hong_Kong',
@@ -39,6 +40,9 @@ export default function SettingsPage() {
   const [agencyForm, setAgencyForm] = useState({ agency_name: 'Jonathon Simpson & Co.', agency_address: '', default_currency: 'HKD' });
   const [integrations, setIntegrations] = useState<Record<string, any>>({});
   const [templateForm, setTemplateForm] = useState({ invoice_default_terms: '', proposal_default_terms: '', proposal_default_scope_template: '' });
+  const [modelMap, setModelMap] = useState<Record<string, { modelKey: string; modelName: string }>>({});
+  const [modelLatencies, setModelLatencies] = useState<Record<string, number | null>>({});
+  const [testingModel, setTestingModel] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -67,7 +71,33 @@ export default function SettingsPage() {
         setIntegrations(map);
       }
     });
+
+    fetch('/api/ai/models').then((r) => r.json()).then((data) => {
+      if (data.actions) setModelMap(data.actions);
+    });
   }, []);
+
+  async function testModel(modelKey: string) {
+    setTestingModel(modelKey);
+    try {
+      const res = await fetch('/api/ai/test-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelKey }),
+      });
+      const data = await res.json();
+      setModelLatencies((prev) => ({ ...prev, [modelKey]: data.latencyMs || null }));
+      if (data.ok) {
+        toast.success(`${modelKey} responded in ${data.latencyMs}ms`);
+      } else {
+        toast.error(`${modelKey} test failed`);
+      }
+    } catch {
+      toast.error('Test request failed');
+    } finally {
+      setTestingModel(null);
+    }
+  }
 
   async function updateProfile() {
     const { error } = await supabase.auth.updateUser({
@@ -167,29 +197,83 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="integrations">
-          <Card>
-            <CardContent className="p-6 space-y-6">
-              <IntegrationField
-                title="GitHub"
-                service="github"
-                currentKey={integrations.github?.encrypted_key ? '••••••••' : ''}
-                onSave={(key) => updateIntegration('github', key)}
-                extraFields={integrations.github?.extra_config as any}
-              />
-              <IntegrationField
-                title="Resend"
-                service="resend"
-                currentKey={integrations.resend?.encrypted_key ? '••••••••' : ''}
-                onSave={(key) => updateIntegration('resend', key)}
-              />
-              <IntegrationField
-                title="DeepSeek"
-                service="deepseek"
-                currentKey={integrations.deepseek?.encrypted_key ? '••••••••' : ''}
-                onSave={(key) => updateIntegration('deepseek', key)}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6 space-y-6">
+                <IntegrationField
+                  title="GitHub"
+                  service="github"
+                  currentKey={integrations.github?.encrypted_key ? '••••••••' : ''}
+                  onSave={(key) => updateIntegration('github', key)}
+                  extraFields={integrations.github?.extra_config as any}
+                />
+                <IntegrationField
+                  title="Resend"
+                  service="resend"
+                  currentKey={integrations.resend?.encrypted_key ? '••••••••' : ''}
+                  onSave={(key) => updateIntegration('resend', key)}
+                />
+                <IntegrationField
+                  title="OpenRouter"
+                  service="openrouter"
+                  currentKey={integrations.openrouter?.encrypted_key ? '••••••••' : ''}
+                  onSave={(key) => updateIntegration('openrouter', key)}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="text-sm">AI Models</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Action</th>
+                      <th className="px-4 py-3 font-medium">Model Key</th>
+                      <th className="px-4 py-3 font-medium">Model Name</th>
+                      <th className="px-4 py-3 font-medium">Latency</th>
+                      <th className="px-4 py-3 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(modelMap).map(([action, config]) => (
+                      <tr key={action} className="border-b text-sm">
+                        <td className="px-4 py-3 capitalize">
+                          {action.replace(/-/g, ' ')}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                          {config.modelKey}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                          {config.modelName}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {modelLatencies[config.modelKey] !== undefined
+                            ? `${modelLatencies[config.modelKey]}ms`
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => testModel(config.modelKey)}
+                            disabled={testingModel === config.modelKey}
+                          >
+                            {testingModel === config.modelKey ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3 w-3" />
+                            )}
+                            <span className="ml-1 text-xs">Ping</span>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="templates">
