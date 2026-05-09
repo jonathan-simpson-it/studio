@@ -25,7 +25,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    await supabase.auth.getUser(undefined, { abortSignal: controller.signal });
+    clearTimeout(timeoutId);
+  } catch {
+    // Supabase unreachable — allow request to proceed anyway
+  }
 
   return supabaseResponse;
 }
