@@ -26,10 +26,10 @@ export async function updateSession(request: NextRequest) {
   );
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    await supabase.auth.getUser(undefined, { abortSignal: controller.signal });
-    clearTimeout(timeoutId);
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), 5000)),
+    ]);
   } catch {
     // Supabase unreachable — allow request to proceed anyway
   }
