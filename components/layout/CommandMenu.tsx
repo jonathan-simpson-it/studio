@@ -13,6 +13,7 @@ import {
   FileText,
   Receipt,
   LayoutDashboard,
+  Calendar,
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 
@@ -33,6 +34,7 @@ const defaultItems: SearchItem[] = [
   { id: 'notes', label: 'Notes', href: '/notes', icon: <StickyNote className="h-4 w-4" /> },
   { id: 'proposals', label: 'Proposals', href: '/proposals', icon: <FileText className="h-4 w-4" /> },
   { id: 'invoices', label: 'Invoices', href: '/invoices', icon: <Receipt className="h-4 w-4" /> },
+  { id: 'calendar', label: 'Calendar', href: '/calendar', icon: <Calendar className="h-4 w-4" /> },
   { id: 'finance', label: 'Finance', href: '/finance', icon: <Receipt className="h-4 w-4" /> },
 ];
 

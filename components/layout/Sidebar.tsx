@@ -17,6 +17,7 @@ import {
   DollarSign,
   Settings,
   Search,
+  Calendar,
 } from 'lucide-react';
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/notes', label: 'Notes', icon: StickyNote },
+  { href: '/calendar', label: 'Calendar', icon: Calendar },
 ];
 
 const navItemsSecondary = [
