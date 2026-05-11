@@ -41,8 +41,10 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
     <aside className="fixed left-0 top-0 z-40 flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <div className="h-6 w-6 rounded bg-primary" />
-        <span className="text-sm font-semibold tracking-tight">Studio</span>
-        <span className="text-[10px] text-muted-foreground">JSCo</span>
+        <div className="flex flex-col leading-tight">
+          <span className="text-sm font-semibold tracking-tight">Studio</span>
+          <span className="text-[9px] text-muted-foreground">Jonathan Simpson &amp; Co.</span>
+        </div>
       </div>
 
       <div className="px-2 pt-2">

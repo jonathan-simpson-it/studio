@@ -26,12 +26,19 @@ export async function updateSession(request: NextRequest) {
   );
 
   try {
-    await Promise.race([
+    const { data: { user } } = await Promise.race([
       supabase.auth.getUser(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), 5000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getUser timed out')), 5000)),
     ]);
+
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('redirect', request.nextUrl.pathname);
+      return NextResponse.redirect(url);
+    }
   } catch {
-    // Supabase unreachable — allow request to proceed anyway
+    // Timeout or network error — allow request to proceed in degraded mode
   }
 
   return supabaseResponse;
