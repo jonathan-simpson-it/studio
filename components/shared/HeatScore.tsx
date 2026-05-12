@@ -9,10 +9,10 @@ interface HeatScoreProps {
 }
 
 const colors: Record<number, string> = {
-  1: 'text-zinc-500',
-  2: 'text-blue-500',
-  3: 'text-yellow-500',
-  4: 'text-orange-500',
+  1: 'text-zinc-700',
+  2: 'text-zinc-500',
+  3: 'text-zinc-400',
+  4: 'text-amber-500',
   5: 'text-red-500',
 };
 

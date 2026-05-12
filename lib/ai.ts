@@ -25,6 +25,8 @@ const ACTION_MODEL_MAP: Record<string, AIModelKey> = {
   'generate-project-summary': 'default',
   'generate-tool-documentation': 'structured',
   'create-github-issue': 'fast',
+  'parse-event-nl': 'fast',
+  'summarize-calendar': 'default',
 };
 
 function resolveModel(action: AIActionType): string {
@@ -91,6 +93,27 @@ Tone: professional, direct, modern.`,
   'autofill-task-description': `You are a project manager for Jonathon Simpson & Co.
 Write a clear task description with acceptance criteria based on the given context. Use markdown.
 Tone: professional, direct, modern.`,
+
+  'parse-event-nl': `You are a calendar assistant for Jonathon Simpson & Co.
+Extract calendar event details from natural language.
+Return ONLY valid JSON with these fields:
+- title (string, required): event name
+- startDate (string, YYYY-MM-DD): start date
+- startTime (string, HH:mm): start time
+- endDate (string, YYYY-MM-DD): end date
+- endTime (string, HH:mm): end time
+- rrule (string or null): RRULE string for recurrence, e.g. "FREQ=WEEKLY;BYDAY=MO,WE"
+- location (string or null): venue or address
+- description (string or null): any extra notes
+If the input mentions "every day/week/month" include an rrule.
+Timezone is Asia/Hong_Kong. Default meeting duration is 1 hour if not specified.`,
+
+  'summarize-calendar': `You are a virtual executive assistant for Jonathon Simpson & Co., a Hong Kong agency.
+Summarize the provided calendar events as a concise digest.
+Structure by day. For each day list key events with times.
+Highlight: high-priority items, deadlines from tasks/invoices, time conflicts, free blocks.
+Use markdown with bullet points. Keep it scannable — 3-5 lines per day max.
+If no events, say "Nothing scheduled — clear focus time."`,
 };
 
 const SYSTEM_CONTEXT = `Agency: Jonathon Simpson & Co.

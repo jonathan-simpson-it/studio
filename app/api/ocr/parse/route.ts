@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 
 const DEEPSEEK_MODEL = 'deepseek-chat';
 
@@ -49,9 +50,9 @@ If a field is not found, use null. Do not include any explanation or other text.
 }
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
   const { rawText, taskId } = body;

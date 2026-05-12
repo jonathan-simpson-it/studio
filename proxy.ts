@@ -26,7 +26,11 @@ export default auth(async function middleware(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  try {
+    await supabase.auth.getUser()
+  } catch {
+    // Supabase unavailable — allow request to proceed in degraded mode
+  }
 
   return supabaseResponse
 })

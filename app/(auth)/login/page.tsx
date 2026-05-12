@@ -23,7 +23,15 @@ export default function LoginPage() {
     }
   }, [status, router])
 
-  if (status === "loading" || status === "authenticated") return null
+  if (status === "loading") {
+    return (
+      <div className="flex justify-center py-8">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+      </div>
+    )
+  }
+
+  if (status === "authenticated") return null
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   Users,
@@ -42,7 +43,7 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-14 items-center gap-2 border-b px-4">
-        <div className="h-6 w-6 rounded bg-primary" />
+        <Image src="/JSC-logo.svg" alt="JSC" width={24} height={24} className="h-6 w-6 rounded" />
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold tracking-tight">Studio</span>
           <span className="text-[9px] text-muted-foreground">Jonathan Simpson &amp; Co.</span>

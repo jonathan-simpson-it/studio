@@ -15,8 +15,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Sparkles } from 'lucide-react';
+import {
+  Loader2,
+  Sparkles,
+  Key,
+  Copy,
+  Check,
+  Trash2,
+  Plus,
+} from 'lucide-react';
 
 const TIMEZONES = [
   'Asia/Hong_Kong',
@@ -45,6 +62,12 @@ export default function SettingsPage() {
   const [modelMap, setModelMap] = useState<Record<string, { modelKey: string; modelName: string }>>({});
   const [modelLatencies, setModelLatencies] = useState<Record<string, number | null>>({});
   const [testingModel, setTestingModel] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
+  const [newKeyForm, setNewKeyForm] = useState({ name: '', scope: 'write' });
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -76,6 +99,10 @@ export default function SettingsPage() {
 
     fetch('/api/ai/models').then((r) => r.json()).then((data) => {
       if (data.actions) setModelMap(data.actions);
+    });
+
+    fetch('/api/keys').then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setApiKeys(data);
     });
   }, []);
 
@@ -131,6 +158,57 @@ export default function SettingsPage() {
     toast.success('Templates updated');
   }
 
+  async function generateKey() {
+    if (!newKeyForm.name.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newKeyForm),
+      });
+      const data = await res.json();
+      if (data.raw_key) {
+        setGeneratedKey(data.raw_key);
+        setApiKeys((prev) => [data, ...prev]);
+        setNewKeyForm({ name: '', scope: 'write' });
+        setShowNewKeyDialog(false);
+      } else {
+        toast.error(data.error || 'Failed to create key');
+      }
+    } catch {
+      toast.error('Failed to create API key');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function toggleKey(id: string, is_active: boolean) {
+    const res = await fetch('/api/keys', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_active }),
+    });
+    if (res.ok) {
+      setApiKeys((prev) => prev.map((k) => (k.id === id ? { ...k, is_active } : k)));
+      toast.success(is_active ? 'Key activated' : 'Key deactivated');
+    } else {
+      const data = await res.json();
+      toast.error(data.error || 'Failed to update key');
+    }
+  }
+
+  async function deleteKey(id: string) {
+    const res = await fetch(`/api/keys?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setApiKeys((prev) => prev.filter((k) => k.id !== id));
+      toast.success('Key deleted');
+    } else {
+      const data = await res.json();
+      toast.error(data.error || 'Failed to delete key');
+    }
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <h2 className="text-xl font-semibold">Settings</h2>
@@ -142,6 +220,7 @@ export default function SettingsPage() {
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -314,7 +393,165 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="api-keys">
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">API Keys</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Keys used to authenticate external requests to the Studio API (e.g. creating leads from your portfolio site).
+                  </p>
+                </div>
+                <Button onClick={() => { setGeneratedKey(null); setShowNewKeyDialog(true); }}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Generate Key
+                </Button>
+              </div>
+
+              {apiKeys.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No API keys yet. Generate one to get started.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {apiKeys.map((key) => (
+                    <div
+                      key={key.id}
+                      className="flex items-center justify-between rounded-md border p-3"
+                    >
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm font-medium">{key.name}</span>
+                          <Badge
+                            variant={key.scope === 'full' ? 'default' : key.scope === 'write' ? 'secondary' : 'outline'}
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {key.scope}
+                          </Badge>
+                          <Badge
+                            variant={key.is_active ? 'default' : 'destructive'}
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {key.is_active ? 'Active' : 'Disabled'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {key.key_prefix}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Created {new Date(key.created_at).toLocaleDateString()}
+                          {key.last_used_at ? ` · Last used ${new Date(key.last_used_at).toLocaleDateString()}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={key.is_active}
+                          onCheckedChange={(checked) => toggleKey(key.id, checked)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteKey(key.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={showNewKeyDialog} onOpenChange={setShowNewKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate API Key</DialogTitle>
+            <DialogDescription>
+              Create a new API key for authenticating external requests.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Key Name</Label>
+              <Input
+                placeholder="e.g. Portfolio Site"
+                value={newKeyForm.name}
+                onChange={(e) => setNewKeyForm({ ...newKeyForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Scope</Label>
+              <Select
+                value={newKeyForm.scope}
+                onValueChange={(v) => setNewKeyForm({ ...newKeyForm, scope: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="read">Read — only read data</SelectItem>
+                  <SelectItem value="write">Write — create and update data</SelectItem>
+                  <SelectItem value="full">Full — all permissions</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={generateKey} disabled={creating || !newKeyForm.name.trim()} className="w-full">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Generate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!generatedKey}
+        onOpenChange={(open) => { if (!open) setGeneratedKey(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>API Key Generated</DialogTitle>
+            <DialogDescription>
+              Copy this key now. You will not be able to see it again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <textarea
+                className="w-full rounded-md border bg-muted p-3 text-xs font-mono"
+                rows={3}
+                readOnly
+                value={generatedKey || ''}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => {
+                  if (generatedKey) {
+                    navigator.clipboard.writeText(generatedKey);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Store this key securely. For example, add it as <code className="text-xs bg-muted px-1 py-0.5 rounded">CRM_API_KEY</code> in your portfolio site&apos;s environment variables.
+            </p>
+            <Button variant="default" className="w-full" onClick={() => setGeneratedKey(null)}>
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

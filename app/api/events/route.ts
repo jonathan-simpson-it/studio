@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { detectConflicts } from '@/lib/calendar-engine/conflicts';
 
 export async function GET(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(request.url);
   const calendarId = url.searchParams.get('calendar_id');
@@ -30,9 +31,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
   const {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       is_all_day: is_all_day || false,
       color: color || null,
       rrule: rrule || null,
-      created_by: user.id,
+      created_by: session.user.id,
     })
     .select()
     .single();
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
     entity_type: 'event',
     entity_id: data.id,
     action: 'created',
-    actor_id: user.id,
+    actor_id: session.user.id,
     meta: { title },
   });
 

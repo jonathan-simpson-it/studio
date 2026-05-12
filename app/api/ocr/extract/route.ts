@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const storagePath = `ocr-uploads/${user.id}/${Date.now()}-${file.name}`;
+  const storagePath = `ocr-uploads/${session.user.id}/${Date.now()}-${file.name}`;
 
   const { error: uploadError } = await supabase.storage
     .from('files')
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   const { data: task, error: taskError } = await supabase
     .from('ocr_tasks')
     .insert({
-      user_id: user.id,
+      user_id: session.user.id,
       file_path: storagePath,
       status: 'processing',
     })

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,7 +22,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Label } from '@/components/ui/label';
+import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
+import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils';
 import {
@@ -164,12 +166,29 @@ export default function TasksPage() {
 }
 
 function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<void> }) {
-  const [form, setForm] = useState({ title: '', priority: 'Medium', status: 'Todo' });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form as Partial<Task>); }} className="space-y-4 pt-4">
       <div className="space-y-2">
         <Label>Title</Label>
         <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Description</Label>
+          <AIGenerateButton
+            action="autofill-task-description"
+            context={{ title: form.title }}
+            onResult={(content) => setForm({ ...form, description: content })}
+            label="AI"
+          />
+        </div>
+        <textarea
+          className="w-full rounded-md border bg-transparent p-3 text-sm"
+          rows={4}
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+        />
       </div>
       <div className="space-y-2">
         <Label>Priority</Label>

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
 
@@ -25,9 +26,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   const body = await request.json();
@@ -41,7 +42,7 @@ export async function POST(
     .from('event_comments')
     .insert({
       event_id: id,
-      user_id: user.id,
+      user_id: session.user.id,
       text: text.trim(),
     })
     .select()

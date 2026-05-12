@@ -1,29 +1,31 @@
 import { Badge } from '@/components/ui/badge';
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info';
+
+const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   // Leads
-  New: { label: 'New', variant: 'default' },
+  New: { label: 'New', variant: 'info' },
   Contacted: { label: 'Contacted', variant: 'secondary' },
   Discovery: { label: 'Discovery', variant: 'outline' },
   'Proposal Sent': { label: 'Proposal Sent', variant: 'outline' },
   Negotiation: { label: 'Negotiation', variant: 'outline' },
-  Won: { label: 'Won', variant: 'default' },
+  Won: { label: 'Won', variant: 'success' },
   Lost: { label: 'Lost', variant: 'destructive' },
   // Projects
   Planning: { label: 'Planning', variant: 'secondary' },
-  'In Progress': { label: 'In Progress', variant: 'default' },
+  'In Progress': { label: 'In Progress', variant: 'info' },
   'Waiting on Client': { label: 'Waiting', variant: 'outline' },
   Review: { label: 'Review', variant: 'outline' },
-  Completed: { label: 'Completed', variant: 'default' },
+  Completed: { label: 'Completed', variant: 'success' },
   // Proposals
   Draft: { label: 'Draft', variant: 'secondary' },
-  Sent: { label: 'Sent', variant: 'default' },
+  Sent: { label: 'Sent', variant: 'info' },
   Viewed: { label: 'Viewed', variant: 'outline' },
-  Accepted: { label: 'Accepted', variant: 'default' },
+  Accepted: { label: 'Accepted', variant: 'success' },
   Rejected: { label: 'Rejected', variant: 'destructive' },
   Expired: { label: 'Expired', variant: 'destructive' },
   // Invoices
-  Paid: { label: 'Paid', variant: 'default' },
+  Paid: { label: 'Paid', variant: 'success' },
   Overdue: { label: 'Overdue', variant: 'destructive' },
   Cancelled: { label: 'Cancelled', variant: 'secondary' },
 };

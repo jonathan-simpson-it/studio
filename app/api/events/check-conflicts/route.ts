@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { detectConflicts } from '@/lib/calendar-engine/conflicts';
 import type { CalendarEvent } from '@/types';
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
   const { calendar_id, start_time, end_time, rrule, exclude_event_id } = body;

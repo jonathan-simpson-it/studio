@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 
 export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await supabase
     .from('calendars')
@@ -16,9 +17,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
   const { name, color } = body;
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const { data: cal, error } = await supabase
     .from('calendars')
-    .insert({ name, color: color || '#3b82f6', created_by: user.id })
+    .insert({ name, color: color || '#3b82f6', created_by: session.user.id })
     .select()
     .single();
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   await supabase.from('calendar_members').insert({
     calendar_id: cal.id,
-    user_id: user.id,
+    user_id: session.user.id,
     role: 'OWNER',
   });
 

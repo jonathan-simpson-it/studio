@@ -35,11 +35,11 @@ export async function GET(request: NextRequest) {
 
     if (recurringInvoices) {
       for (const inv of recurringInvoices) {
-        const { data: sequences } = await supabase
+        const { data: seqData } = await supabase
           .rpc('lock_and_get_sequence', { entity: 'invoice', yr: new Date().getFullYear() })
           .single();
 
-        const nextSeq = (sequences || 0) + 1;
+        const nextSeq = (typeof seqData === 'number' ? seqData : (seqData as any)?.lock_and_get_sequence ?? 0) + 1;
         const invoiceNumber = `INV-${new Date().getFullYear()}-${String(nextSeq).padStart(3, '0')}`;
 
         const { error: insertError } = await supabase.from('invoices').insert({

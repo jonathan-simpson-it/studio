@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
+import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import { formatDate } from '@/lib/utils';
 import { ArrowLeft, Lock, Globe } from 'lucide-react';
 import { toast } from 'sonner';
@@ -76,6 +77,14 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
 
       <Card>
         <CardContent className="p-6">
+          <div className="flex justify-end mb-2">
+            <AIGenerateButton
+              action="autofill-note"
+              context={{ title: note.title, existing_body: note.body || '' }}
+              onResult={(content) => handleSave('body', content)}
+              label="Auto-fill with AI"
+            />
+          </div>
           <MarkdownEditor
             value={note.body || ''}
             onChange={(v) => handleSave('body', v)}

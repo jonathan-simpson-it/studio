@@ -15,6 +15,8 @@ const AI_ACTIONS: AIActionType[] = [
   'generate-multilingual-email',
   'autofill-note',
   'autofill-task-description',
+  'parse-event-nl',
+  'summarize-calendar',
 ];
 
 export async function POST(request: NextRequest) {

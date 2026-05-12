@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 
 const currencyLabels: Record<string, { label: string; variant: 'default' | 'outline' | 'secondary' }> = {
-  HKD: { label: 'HKD', variant: 'default' },
+  HKD: { label: 'HKD', variant: 'secondary' },
   GBP: { label: 'GBP', variant: 'secondary' },
-  IDR: { label: 'IDR', variant: 'outline' },
+  IDR: { label: 'IDR', variant: 'secondary' },
 };
 
 export function CurrencyBadge({ currency }: { currency: string }) {

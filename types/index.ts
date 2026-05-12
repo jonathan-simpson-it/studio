@@ -33,7 +33,11 @@ export type AIActionType =
   | 'generate-follow-up-email'
   | 'generate-multilingual-email'
   | 'autofill-note'
-  | 'autofill-task-description';
+  | 'autofill-task-description'
+  | 'parse-event-nl'
+  | 'summarize-calendar';
+
+export type EventSourceType = 'task' | 'milestone' | 'invoice' | 'proposal' | 'github_issue';
 
 // ============================================================
 // ENTITY TYPES
@@ -456,6 +460,9 @@ export interface CalendarEvent {
   created_by: string;
   created_at: string;
   updated_at: string;
+  source_type?: EventSourceType;
+  source_id?: string;
+  source_url?: string;
 }
 
 export interface Reminder {

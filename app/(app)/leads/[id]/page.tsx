@@ -29,8 +29,9 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { calculateHeatScore } from '@/lib/heat-score';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import type { Lead, Proposal, ActivityLog } from '@/types';
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -178,6 +179,15 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <ExternalLink className="mr-2 h-4 w-4" /> Convert to Client
           </Button>
         )}
+        <AIGenerateButton
+          action="draft-email"
+          context={{ contact_name: lead.contact_name, company_name: lead.company_name }}
+          onResult={(content) => {
+            navigator.clipboard.writeText(content);
+            toast.success('Email draft copied to clipboard');
+          }}
+          label="Draft email"
+        />
       </div>
 
       <Card>

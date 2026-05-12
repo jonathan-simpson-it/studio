@@ -78,6 +78,7 @@ export function EventModal({
   const [calendarId, setCalendarId] = useState('');
   const [conflicts, setConflicts] = useState<EventLike[]>([]);
   const [parsing, setParsing] = useState(false);
+  const [aiParsing, setAIParsing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [importedEvents, setImportedEvents] = useState<ImportableEvent[]>([]);
@@ -163,6 +164,34 @@ export function EventModal({
       if (result.rrule) setRrule(result.rrule);
       if (result.location) setLocation(result.location);
       if (result.description) setDescription(result.description);
+      if (!result.start) {
+        setAIParsing(true);
+        try {
+          const res = await fetch('/api/ai/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'parse-event-nl',
+              context: { input: nlInput },
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.content) {
+            const parsed = JSON.parse(data.content);
+            if (parsed.title) setTitle(parsed.title);
+            if (parsed.startDate) setStartDate(parsed.startDate);
+            if (parsed.startTime) setStartTime(parsed.startTime);
+            if (parsed.endDate) setEndDate(parsed.endDate);
+            if (parsed.endTime) setEndTime(parsed.endTime);
+            if (parsed.rrule) setRrule(parsed.rrule);
+            if (parsed.location) setLocation(parsed.location);
+            if (parsed.description) setDescription(parsed.description);
+          }
+        } catch {
+          // AI parse failed, use whatever chrono gave us
+        }
+        setAIParsing(false);
+      }
       setTab('form');
     } catch {
       setTab('form');
@@ -391,6 +420,9 @@ export function EventModal({
               <p className="text-[10px] text-muted-foreground">
                 Supports: &quot;Meeting every Monday 2-3pm&quot;, &quot;Lunch tomorrow at noon for 1 hour&quot;,
                 &quot;Conference May 3-5 all day&quot;
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Complex phrases automatically fall back to AI parsing
               </p>
             </TabsContent>
 

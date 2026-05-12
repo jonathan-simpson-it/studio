@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
-import { CommandMenu } from '@/components/layout/CommandMenu';
+
+const CommandMenu = dynamic(() => import('@/components/layout/CommandMenu').then((m) => m.CommandMenu), { ssr: false });
 import { cn } from '@/lib/utils';
 
 const pageTitles: Record<string, string> = {

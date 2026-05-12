@@ -13,7 +13,19 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CheckSquare, Flag, FileText, GitBranch } from 'lucide-react';
 import type { CalendarEvent, Calendar } from '@/types';
+
+function sourceIcon(sourceType?: string) {
+  switch (sourceType) {
+    case 'task': return <CheckSquare className="inline h-2.5 w-2.5 mr-0.5" />;
+    case 'milestone': return <Flag className="inline h-2.5 w-2.5 mr-0.5" />;
+    case 'invoice': return <FileText className="inline h-2.5 w-2.5 mr-0.5" />;
+    case 'proposal': return <FileText className="inline h-2.5 w-2.5 mr-0.5" />;
+    case 'github_issue': return <GitBranch className="inline h-2.5 w-2.5 mr-0.5" />;
+    default: return null;
+  }
+}
 
 interface MonthViewProps {
   date: Date;
@@ -131,6 +143,7 @@ export function MonthView({
                         onSelectEvent(ev);
                       }}
                     >
+                      {sourceIcon(ev.source_type)}
                       {!ev.is_all_day && format(new Date(ev.start_time), 'HH:mm')}{' '}
                       {ev.title}
                     </button>

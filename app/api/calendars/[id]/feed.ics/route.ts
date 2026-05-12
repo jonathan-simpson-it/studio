@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { generateICS } from '@/lib/calendar-engine/ics';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
   const supabase = await createServer();
   const { id } = await params;
   const token = request.nextUrl.searchParams.get('token');
 
   let eventsData;
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (user) {
+  if (session?.user) {
     const { data: cal } = await supabase
       .from('calendars')
       .select('name')
