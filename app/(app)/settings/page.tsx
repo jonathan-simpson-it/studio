@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,7 @@ const TIMEZONES = [
 
 export default function SettingsPage() {
   const supabase = createClient();
+  const { data: session } = useSession();
   const [user, setUser] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [profileForm, setProfileForm] = useState({ full_name: '', timezone: 'Asia/Hong_Kong', default_hourly_rate: '0' });
@@ -49,7 +51,7 @@ export default function SettingsPage() {
       if (data?.user) {
         setUser(data.user);
         setProfileForm({
-          full_name: data.user.user_metadata?.full_name || '',
+          full_name: data.user.user_metadata?.full_name || session?.user?.name || '',
           timezone: data.user.user_metadata?.timezone || 'Asia/Hong_Kong',
           default_hourly_rate: data.user.user_metadata?.default_hourly_rate?.toString() || '0',
         });

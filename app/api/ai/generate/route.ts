@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import type { AIActionType } from '@/types';
 
 const AI_ACTIONS: AIActionType[] = [
@@ -18,14 +18,13 @@ const AI_ACTIONS: AIActionType[] = [
 ];
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = await request.json();
-  const { action, context, useFallback } = body;
+  const { action, context } = body;
 
   if (!AI_ACTIONS.includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

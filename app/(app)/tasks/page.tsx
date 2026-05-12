@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ import type { Task } from '@/types';
 
 export default function TasksPage() {
   const supabase = createClient();
+  const { data: session } = useSession();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState<'board' | 'table'>('board');
   const [search, setSearch] = useState('');
@@ -93,8 +95,8 @@ export default function TasksPage() {
           <SheetContent>
             <SheetHeader><SheetTitle>New Task</SheetTitle></SheetHeader>
             <TaskForm onSubmit={async (data) => {
-              const { data: { user } } = await supabase.auth.getUser();
-              const { error } = await supabase.from('tasks').insert({ ...data, created_by: user?.id });
+              const userId = session?.user?.id
+              const { error } = await supabase.from('tasks').insert({ ...data, created_by: userId });
               if (error) { toast.error(error.message); return; }
               toast.success('Task created');
               setShowNewSheet(false);

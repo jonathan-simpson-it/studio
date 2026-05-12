@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ export function FileUpload({
   const [files, setFiles] = useState<Array<{ name: string; path: string; url: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
+  const { data: session } = useSession();
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -33,8 +35,7 @@ export function FileUpload({
 
     setUploading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!session?.user?.id) {
       toast.error('Not authenticated');
       setUploading(false);
       return;
@@ -67,7 +68,7 @@ export function FileUpload({
       visibility,
       client_id: clientId || null,
       project_id: projectId || null,
-      uploaded_by: user.id,
+      uploaded_by: session.user.id,
     });
 
     if (dbError) {

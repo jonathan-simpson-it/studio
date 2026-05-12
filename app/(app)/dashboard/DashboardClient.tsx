@@ -97,7 +97,7 @@ function ActivityItem({ entry }: { entry: ActivityLog & { actor?: { full_name?: 
 }
 
 interface DashboardClientProps {
-  user: { id: string; email?: string; user_metadata?: { full_name?: string } } | null;
+  user: { id?: string; email?: string | null; name?: string | null } | null;
   tasks: Task[];
   leads: Lead[];
   invoices: Invoice[];
@@ -115,7 +115,7 @@ export function DashboardClient({
   milestones,
   activity,
 }: DashboardClientProps) {
-  const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Founder';
+  const name = user?.name || user?.email?.split('@')[0] || 'Founder';
   const greeting = getGreeting();
 
   const overdueTasks = tasks.filter((t) => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'Done');

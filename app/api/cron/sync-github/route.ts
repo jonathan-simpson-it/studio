@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     let totalSynced = 0;
+    let totalFailed = 0;
 
     for (const repo of repos) {
       try {
@@ -45,14 +46,19 @@ export async function GET(request: NextRequest) {
             },
             { onConflict: 'github_issue_id' }
           );
-          if (!error) totalSynced++;
+          if (error) {
+            console.error(`Failed to sync issue #${issue.number} from ${repo.full_name}:`, error.message);
+            totalFailed++;
+          } else {
+            totalSynced++;
+          }
         }
       } catch (repoError) {
         console.error(`Sync failed for ${repo.full_name}:`, repoError);
       }
     }
 
-    return NextResponse.json({ synced: totalSynced });
+    return NextResponse.json({ synced: totalSynced, failed: totalFailed });
   } catch (error) {
     console.error('GitHub sync cron error:', error);
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });

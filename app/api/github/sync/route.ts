@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { listIssues } from '@/lib/github';
 import type { SyncedGithubIssue } from '@/types';
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = await createServer();
 
   const body = await request.json();
   const { projectId } = body;
@@ -27,18 +29,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No repos linked to this project' }, { status: 400 });
     }
 
-    let totalSynced = 0;
+    let totalSynced = 0
+    let totalFailed = 0
+    const failures: { repo: string; issue: number; error: string }[] = []
 
     for (const repo of repos) {
-      const issues = await listIssues(repo.full_name);
+      const issues = await listIssues(repo.full_name)
       for (const issue of issues) {
-        const { error } = await supabase.from('synced_github_issues').upsert(
+        const { error } = await supabase.from("synced_github_issues").upsert(
           {
             github_issue_id: issue.number,
             repo_id: repo.id,
             project_id: projectId,
             title: issue.title,
-            body: issue.body || '',
+            body: issue.body || "",
             state: issue.state,
             assignee_github_login: issue.assignee?.login || null,
             labels: issue.labels.map((l: any) => ({ name: l.name, color: l.color })),
@@ -48,14 +52,23 @@ export async function POST(request: NextRequest) {
             updated_at_github: issue.updated_at,
             synced_at: new Date().toISOString(),
           },
-          { onConflict: 'github_issue_id' }
-        );
+          { onConflict: "github_issue_id" }
+        )
 
-        if (!error) totalSynced++;
+        if (error) {
+          totalFailed++
+          failures.push({ repo: repo.full_name, issue: issue.number, error: error.message })
+        } else {
+          totalSynced++
+        }
       }
     }
 
-    return NextResponse.json({ synced: totalSynced });
+    if (totalFailed > 0) {
+      console.error("GitHub sync partial failure:", failures)
+    }
+
+    return NextResponse.json({ synced: totalSynced, failed: totalFailed, failures })
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Sync failed' },

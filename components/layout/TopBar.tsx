@@ -1,7 +1,7 @@
-'use client';
+"use client"
 
-import { Bell, Timer } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Bell, Timer } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,37 +9,30 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { toast } from 'sonner';
-import { useEffect, useState } from 'react';
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useRouter } from "next/navigation"
+import { signOut, useSession } from "next-auth/react"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 
 interface TopBarProps {
-  title: string;
+  title: string
 }
 
 export function TopBar({ title }: TopBarProps) {
-  const router = useRouter();
-  const supabase = createClient();
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        setUserName(data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'User');
-        setUserEmail(data.user.email || '');
-      }
-    });
-  }, [supabase]);
+  const router = useRouter()
+  const { data: session } = useSession()
+  const userName = session?.user?.name || "User"
+  const userEmail = session?.user?.email || ""
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    toast.success('Signed out');
-    router.push('/login');
-    router.refresh();
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    await signOut({ redirect: false })
+    toast.success("Signed out")
+    router.push("/login")
+    router.refresh()
   }
 
   return (
@@ -86,7 +79,7 @@ export function TopBar({ title }: TopBarProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/settings')}>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -97,5 +90,5 @@ export function TopBar({ title }: TopBarProps) {
         </DropdownMenu>
       </div>
     </header>
-  );
+  )
 }

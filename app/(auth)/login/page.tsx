@@ -1,51 +1,60 @@
-'use client';
+"use client"
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { signIn, useSession } from "next-auth/react"
+import { createClient } from "@/lib/supabase/client"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
-  const router = useRouter();
-  const supabase = createClient();
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const { status } = useSession()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        router.push('/dashboard');
-      } else {
-        setChecking(false);
-      }
-    });
-  }, []);
+    if (status === "authenticated") {
+      router.push("/dashboard")
+    }
+  }, [status, router])
 
-  if (checking) return null;
+  if (status === "loading" || status === "authenticated") return null
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const supabase = createClient()
+    const { error: supabaseError } = await supabase.auth.signInWithPassword({
       email,
       password,
-    });
+    })
 
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
+    if (supabaseError) {
+      toast.error(supabaseError.message)
+      setLoading(false)
+      return
     }
 
-    router.push('/dashboard');
-    router.refresh();
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    })
+
+    if (result?.error) {
+      toast.error("Authentication failed. Please try again.")
+      setLoading(false)
+      return
+    }
+
+    router.push("/dashboard")
+    router.refresh()
   }
 
   return (
@@ -81,9 +90,9 @@ export default function LoginPage() {
             Signing in…
           </>
         ) : (
-          'Sign in'
+          "Sign in"
         )}
       </Button>
     </form>
-  );
+  )
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,7 @@ import type { Invoice, Cost, Client } from '@/types';
 
 export default function FinancePage() {
   const supabase = createClient();
+  const { data: session } = useSession();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [costs, setCosts] = useState<Cost[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -189,8 +191,8 @@ export default function FinancePage() {
               <SheetContent>
                 <SheetHeader><SheetTitle>Add Cost</SheetTitle></SheetHeader>
                 <CostForm clients={clients} onSubmit={async (data) => {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  const { error } = await supabase.from('costs').insert({ ...data, created_by: user?.id });
+                  const userId = session?.user?.id
+                  const { error } = await supabase.from('costs').insert({ ...data, created_by: userId });
                   if (error) { toast.error(error.message); return; }
                   toast.success('Cost added');
                   setShowCostSheet(false);

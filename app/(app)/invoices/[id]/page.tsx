@@ -131,7 +131,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <AIGenerateButton
             action="generate-invoice"
             context={{ invoice_number: invoice.invoice_number, currency: invoice.currency }}
-            onResult={(content) => toast.success('Invoice content generated')}
+            onResult={(content) => handleField('payment_terms', content)}
           />
           <Button onClick={handleSave} variant="outline">Save Draft</Button>
           {['Draft', 'Overdue'].includes(invoice.status) && <Button onClick={handleSend}><Send className="mr-2 h-4 w-4" /> Send</Button>}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -437,13 +438,14 @@ function MilestoneForm({ onSubmit }: { onSubmit: (data: Partial<Milestone>) => P
 
 function NotesTab({ notes, projectId, onRefresh }: { notes: Note[]; projectId: string; onRefresh: () => void }) {
   const supabase = createClient();
+  const { data: session } = useSession();
   const [newNote, setNewNote] = useState('');
 
   async function addNote() {
     if (!newNote.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase.from('notes').insert({ title: newNote.slice(0, 60), body: newNote, project_id: projectId, author_id: user.id });
+    const userId = session?.user?.id
+    if (!userId) return;
+    const { error } = await supabase.from('notes').insert({ title: newNote.slice(0, 60), body: newNote, project_id: projectId, author_id: userId });
     if (error) { toast.error(error.message); return; }
     setNewNote('');
     toast.success('Note added');

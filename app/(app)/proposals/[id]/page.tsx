@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,7 @@ import type { Proposal, Client, LineItem } from '@/types';
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = createClient();
   const router = useRouter();
+  const { data: session } = useSession();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -97,7 +99,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
 
   async function handleAccept() {
     if (!proposal) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const userId = session?.user?.id
 
     await supabase
       .from('proposals')
@@ -110,7 +112,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         client_id: proposal.client_id,
         billing_type: 'One-off',
         status: 'Planning',
-        owner_id: user?.id,
+        owner_id: userId,
         currency: proposal.currency,
         source_proposal_id: proposal.id,
       });
@@ -125,7 +127,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
       line_items: lineItems,
       subtotal,
       total,
-      created_by: user?.id,
+      created_by: userId,
     });
 
     toast.success('Proposal accepted. Invoice draft created.');
@@ -156,7 +158,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           <AIGenerateButton
             action="generate-proposal"
             context={{ proposal_number: proposal.proposal_number, currency: proposal.currency, line_items: lineItems }}
-            onResult={(content) => toast.success('Proposal content generated')}
+            onResult={(content) => handleField('scope_of_work', content)}
           />
           <Button onClick={handleSave} variant="outline">Save Draft</Button>
           {proposal.status === 'Draft' && <Button onClick={handleSend}><Send className="mr-2 h-4 w-4" /> Send</Button>}

@@ -125,7 +125,6 @@ CREATE TABLE projects (
   currency text DEFAULT 'HKD' NOT NULL,
   budget numeric,
   source_lead_id uuid REFERENCES leads,
-  source_proposal_id uuid REFERENCES proposals,
   created_at timestamptz DEFAULT now() NOT NULL,
   updated_at timestamptz DEFAULT now() NOT NULL
 );
@@ -296,6 +295,9 @@ CREATE POLICY "founders_all_proposals" ON proposals
   FOR ALL USING (
     EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'founder')
   );
+
+ALTER TABLE projects
+  ADD COLUMN source_proposal_id uuid REFERENCES proposals;
 
 -- ============================================================
 -- INVOICES

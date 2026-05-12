@@ -36,13 +36,10 @@ export async function GET(request: NextRequest) {
     if (recurringInvoices) {
       for (const inv of recurringInvoices) {
         const { data: sequences } = await supabase
-          .from('doc_number_sequences')
-          .select('sequence')
-          .eq('entity_type', 'invoice')
-          .eq('year', new Date().getFullYear())
+          .rpc('lock_and_get_sequence', { entity: 'invoice', yr: new Date().getFullYear() })
           .single();
 
-        const nextSeq = (sequences?.sequence || 0) + 1;
+        const nextSeq = (sequences || 0) + 1;
         const invoiceNumber = `INV-${new Date().getFullYear()}-${String(nextSeq).padStart(3, '0')}`;
 
         const { error: insertError } = await supabase.from('invoices').insert({
@@ -81,10 +78,7 @@ export async function GET(request: NextRequest) {
             .eq('id', inv.id);
 
           await supabase
-            .from('doc_number_sequences')
-            .update({ sequence: nextSeq })
-            .eq('entity_type', 'invoice')
-            .eq('year', new Date().getFullYear());
+            .rpc('update_sequence', { entity: 'invoice', yr: new Date().getFullYear(), seq: nextSeq })
         }
       }
     }

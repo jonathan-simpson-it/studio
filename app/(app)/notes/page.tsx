@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,27 +31,23 @@ import type { Note } from '@/types';
 export default function NotesPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { data: session } = useSession();
   const [notes, setNotes] = useState<Note[]>([]);
   const [search, setSearch] = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) setCurrentUser(data.user.id);
-    });
-    load();
-  }, []);
+    if (session?.user?.id) load();
+  }, [session]);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!session?.user?.id) return;
 
     const { data } = await supabase
       .from('notes')
       .select('*')
-      .or(`visibility.eq.internal,and(visibility.eq.private,author_id.eq.${user.id}),and(visibility.eq.client-safe)`)
+      .or(`visibility.eq.internal,and(visibility.eq.private,author_id.eq.${session.user.id}),and(visibility.eq.client-safe)`)
       .order('created_at', { ascending: false });
 
     if (data) setNotes(data);
@@ -79,8 +76,8 @@ export default function NotesPage() {
           <SheetContent side="right" className="w-full sm:max-w-lg">
             <SheetHeader><SheetTitle>New Note</SheetTitle></SheetHeader>
             <NoteForm onSubmit={async (data) => {
-              const { data: { user } } = await supabase.auth.getUser();
-              const { error } = await supabase.from('notes').insert({ ...data, author_id: user?.id });
+              const userId = session?.user?.id
+              const { error } = await supabase.from('notes').insert({ ...data, author_id: userId });
               if (error) { toast.error(error.message); return; }
               toast.success('Note created');
               setShowNewSheet(false);

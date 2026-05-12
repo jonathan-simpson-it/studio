@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ import type { Lead, Proposal, ActivityLog } from '@/types';
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const supabase = createClient();
+  const { data: session } = useSession();
   const [lead, setLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -90,8 +92,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   async function handleConvert() {
     if (!lead || lead.stage !== 'Won') return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const userId = session?.user?.id
+    if (!userId) return;
 
     const { data: client, error: clientError } = await supabase
       .from('clients')
@@ -118,7 +120,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         client_id: client.id,
         billing_type: convertBillingType,
         status: 'Planning',
-        owner_id: user.id,
+        owner_id: userId,
         currency: lead.currency,
         source_lead_id: lead.id,
       })
@@ -143,7 +145,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       entity_type: 'lead',
       entity_id: lead.id,
       action: 'converted',
-      actor_id: user.id,
+      actor_id: userId,
       meta: { client_id: client.id, project_id: project.id, lead_id: lead.id },
     });
 

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import type { AIModelKey } from '@/types';
 
 const VALID_MODEL_KEYS: AIModelKey[] = ['default', 'longform', 'structured', 'multilingual', 'fast'];
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await auth();
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
