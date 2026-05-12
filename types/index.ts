@@ -13,6 +13,8 @@ export type BillingType = 'One-off' | 'Retainer' | 'Milestone' | 'Support';
 export type CostCategory = 'Software' | 'API' | 'Contractor' | 'Domain' | 'Hosting' | 'Travel' | 'Other';
 export type Visibility = 'internal' | 'private' | 'client-safe';
 export type UserRole = 'founder' | 'client';
+export type CalendarRole = 'OWNER' | 'EDITOR' | 'VIEWER';
+export type ReminderMethod = 'email' | 'push' | 'browser';
 export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
 export type MilestoneStatus = 'Open' | 'In Progress' | 'Completed';
 export type ApiKeyScope = 'read' | 'write' | 'full';
@@ -415,4 +417,111 @@ export interface ActivityMetaConverted {
 export interface ActivityMetaPaid {
   invoice_number: string;
   paid_at: string;
+}
+
+// ============================================================
+// CALENDAR TYPES
+// ============================================================
+
+export interface Calendar {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CalendarMember {
+  id: string;
+  calendar_id: string;
+  user_id: string;
+  role: CalendarRole;
+}
+
+export interface CalendarEvent {
+  id: string;
+  calendar_id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_time: string;
+  end_time: string;
+  is_all_day: boolean;
+  color: string | null;
+  rrule: string | null;
+  external_source_id: string | null;
+  external_event_id: string | null;
+  version: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Reminder {
+  id: string;
+  event_id: string;
+  trigger_at: string;
+  method: ReminderMethod;
+  is_sent: boolean;
+  created_at: string;
+}
+
+export interface EventComment {
+  id: string;
+  event_id: string;
+  user_id: string;
+  text: string;
+  created_at: string;
+}
+
+export interface CalendarSource {
+  id: string;
+  calendar_id: string;
+  url: string;
+  last_sync: string | null;
+  last_etag: string | null;
+  sync_token: string | null;
+  created_at: string;
+}
+
+export interface DailyExpense {
+  id: string;
+  calendar_id: string | null;
+  user_id: string;
+  date: string;
+  amount: number;
+  category: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface OcrTask {
+  id: string;
+  user_id: string;
+  status: 'processing' | 'done' | 'failed';
+  file_path: string | null;
+  raw_text: string | null;
+  parsed_json: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarInvite {
+  id: string;
+  calendar_id: string;
+  token: string;
+  role: 'EDITOR' | 'VIEWER';
+  expires_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CalendarShare {
+  id: string;
+  calendar_id: string;
+  token: string;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
 }
