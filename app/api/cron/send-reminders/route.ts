@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
   }
 
   await connect();
-  const reminders = await Reminder.find({ is_sent: false, trigger_at: { $lte: new Date() } })
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+  const reminders = await Reminder.find({ is_sent: false, trigger_at: { $gte: yesterdayStart, $lt: todayStart } })
     .limit(50).sort({ trigger_at: 1 }).lean({ virtuals: true });
 
   if (!reminders?.length) {
