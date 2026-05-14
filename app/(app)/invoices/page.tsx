@@ -2,33 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { listInvoices } from '@/lib/db/actions/invoices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils';
-import { Search, Plus } from 'lucide-react';
-import { toast } from 'sonner';
+import { Search } from 'lucide-react';
 import type { Invoice } from '@/types';
 
 export default function InvoicesPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState('');
@@ -36,7 +19,7 @@ export default function InvoicesPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+    const data = await listInvoices();
     if (data) setInvoices(data);
   }
 

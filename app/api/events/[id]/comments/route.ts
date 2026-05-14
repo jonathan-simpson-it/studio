@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { connect } from '@/lib/db/connect';
+import { EventComment } from '@/lib/db/models/calendar';
 import { auth } from '@/auth';
 
 export async function GET(
@@ -8,17 +9,15 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const { id } = await params;
 
-  const { data, error } = await supabase
-    .from('event_comments')
-    .select('*, user:users(email, full_name, avatar_url)')
-    .eq('event_id', id)
-    .order('created_at', { ascending: true });
+  await connect();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const data = await EventComment.find({ event_id: id })
+    .sort({ created_at: 1 })
+    .lean({ virtuals: true });
+
   return NextResponse.json(data);
 }
 
@@ -28,7 +27,6 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const { id } = await params;
   const body = await request.json();
@@ -38,16 +36,15 @@ export async function POST(
     return NextResponse.json({ error: 'Text required' }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from('event_comments')
-    .insert({
-      event_id: id,
-      user_id: session.user.id,
-      text: text.trim(),
-    })
-    .select()
-    .single();
+  await connect();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+  const comment = await EventComment.create({
+    event_id: id,
+    user_id: session.user.id,
+    text: text.trim(),
+  });
+
+  const result = comment.toObject({ virtuals: true });
+
+  return NextResponse.json(result, { status: 201 });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { connect } from '@/lib/db/connect';
+import { CalendarSource, Event } from '@/lib/db/models/calendar';
 import { parseICS } from '@/lib/calendar-engine/ics-parse';
 
 export async function GET(request: NextRequest) {
@@ -10,13 +11,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
+  await connect();
+  const sources = await CalendarSource.find().lean({ virtuals: true });
 
-  const { data: sources, error } = await supabase
-    .from('calendar_sources')
-    .select('*');
-
-  if (error || !sources?.length) {
+  if (!sources?.length) {
     return NextResponse.json({ error: 'No sources', synced: 0 });
   }
 
@@ -24,18 +22,16 @@ export async function GET(request: NextRequest) {
 
   for (const source of sources) {
     try {
+      const s = source as any;
       const headers: Record<string, string> = {};
-      if (source.last_etag) {
-        headers['If-None-Match'] = source.last_etag;
+      if (s.last_etag) {
+        headers['If-None-Match'] = s.last_etag;
       }
 
-      const res = await fetch(source.url, { headers });
+      const res = await fetch(s.url, { headers });
 
       if (res.status === 304) {
-        await supabase
-          .from('calendar_sources')
-          .update({ last_sync: new Date().toISOString() })
-          .eq('id', source.id);
+        await CalendarSource.findByIdAndUpdate(s._id, { last_sync: new Date() });
         continue;
       }
 
@@ -44,43 +40,35 @@ export async function GET(request: NextRequest) {
 
       const etag = res.headers.get('etag');
       if (etag) {
-        await supabase
-          .from('calendar_sources')
-          .update({ last_etag: etag })
-          .eq('id', source.id);
+        await CalendarSource.findByIdAndUpdate(s._id, { last_etag: etag });
       }
 
       for (const pev of parsedEvents) {
-        const { data: existing } = await supabase
-          .from('events')
-          .select('id')
-          .eq('external_event_id', pev.uid)
-          .eq('calendar_id', source.calendar_id)
-          .single();
+        const existing = await Event.findOne({
+          external_event_id: pev.uid,
+          calendar_id: s.calendar_id,
+        }).lean({ virtuals: true });
 
         if (existing) {
-          await supabase
-            .from('events')
-            .update({
-              title: pev.summary,
-              description: pev.description,
-              location: pev.location,
-              start_time: pev.start.toISOString(),
-              end_time: pev.end.toISOString(),
-              rrule: pev.rrule,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id);
-        } else {
-          await supabase.from('events').insert({
-            calendar_id: source.calendar_id,
+          await Event.findByIdAndUpdate(existing._id, {
             title: pev.summary,
             description: pev.description,
             location: pev.location,
-            start_time: pev.start.toISOString(),
-            end_time: pev.end.toISOString(),
+            start_time: pev.start,
+            end_time: pev.end,
             rrule: pev.rrule,
-            external_source_id: source.id,
+            updated_at: new Date(),
+          });
+        } else {
+          await Event.create({
+            calendar_id: s.calendar_id,
+            title: pev.summary,
+            description: pev.description,
+            location: pev.location,
+            start_time: pev.start,
+            end_time: pev.end,
+            rrule: pev.rrule,
+            external_source_id: s._id.toString(),
             external_event_id: pev.uid,
             created_by: '00000000-0000-0000-0000-000000000000',
           });
@@ -88,12 +76,9 @@ export async function GET(request: NextRequest) {
         synced++;
       }
 
-      await supabase
-        .from('calendar_sources')
-        .update({ last_sync: new Date().toISOString() })
-        .eq('id', source.id);
+      await CalendarSource.findByIdAndUpdate(s._id, { last_sync: new Date() });
     } catch (err) {
-      console.error(`Failed to sync source ${source.id}:`, err);
+      console.error(`Failed to sync source ${(source as any)._id}:`, err);
     }
   }
 

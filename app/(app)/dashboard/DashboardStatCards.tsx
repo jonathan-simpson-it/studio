@@ -1,5 +1,8 @@
 import { auth } from "@/auth"
-import { createServer } from "@/lib/supabase/server"
+import { getProjectStats } from "@/lib/db/actions/projects"
+import { getUserTasks } from "@/lib/db/actions/projects"
+import { getLeadStats } from "@/lib/db/actions/leads"
+import { getOutstandingInvoices } from "@/lib/db/actions/invoices"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckSquare, Users, Receipt, FolderKanban } from "lucide-react"
 import Link from "next/link"
@@ -35,38 +38,28 @@ function StatCard({
 
 export async function DashboardStatCards() {
   const session = await auth()
-  const supabase = await createServer()
 
-  const [projectsResult, tasksResult, leadsResult, invoicesResult] = await Promise.all([
-    supabase.from("projects").select("status").neq("status", "Completed"),
-    supabase.from("tasks").select("status, due_date").eq("assignee_id", session?.user?.id).neq("status", "Done"),
-    supabase.from("leads").select("last_contacted_at").not("stage", "in", '("Won","Lost")'),
-    supabase.from("invoices").select("total, status").in("status", ["Sent", "Overdue"]),
+  const [projectStats, userTasks, staleLeads, outstandingInvoices] = await Promise.all([
+    getProjectStats(),
+    getUserTasks(session?.user?.id || ''),
+    getLeadStats(),
+    getOutstandingInvoices(),
   ])
 
-  const projects = projectsResult.data || []
-  const tasks = tasksResult.data || []
-  const leads = leadsResult.data || []
-  const invoices = invoicesResult.data || []
-
-  const overdueTasks = tasks.filter((t) => t.due_date && new Date(t.due_date) < new Date())
-  const staleLeads = leads.filter(
-    (l) => !l.last_contacted_at || new Date(l.last_contacted_at) < new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
-  )
-  const invoiceTotal = invoices.reduce((sum, inv) => sum + inv.total, 0)
+  const overdueTasks = userTasks.filter((t: any) => t.due_date && new Date(t.due_date) < new Date())
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <StatCard
         title="Active Projects"
-        value={projects.length}
-        subtitle={projects.filter((p) => p.status === 'In Progress').length + ' in progress'}
+        value={projectStats.activeCount}
+        subtitle={projectStats.inProgressCount + ' in progress'}
         icon={FolderKanban}
         href="/projects"
       />
       <StatCard
         title="My Tasks"
-        value={tasks.filter((t) => t.status !== 'Done').length}
+        value={userTasks.length}
         subtitle={overdueTasks.length + ' overdue'}
         icon={CheckSquare}
         href="/tasks"
@@ -80,8 +73,8 @@ export async function DashboardStatCards() {
       />
       <StatCard
         title="Outstanding Invoices"
-        value={invoiceTotal.toLocaleString('en-US', { style: 'currency', currency: 'HKD', minimumFractionDigits: 0 })}
-        subtitle={invoices.length + ' unpaid'}
+        value={outstandingInvoices.total.toLocaleString('en-US', { style: 'currency', currency: 'HKD', minimumFractionDigits: 0 })}
+        subtitle={outstandingInvoices.invoices.length + ' unpaid'}
         icon={Receipt}
         href="/invoices"
       />

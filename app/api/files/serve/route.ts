@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServer } from "@/lib/supabase/server"
 import { auth } from "@/auth"
+import { getFileStream, getFileInfo } from "@/lib/storage/gridfs"
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -9,22 +9,24 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const storagePath = searchParams.get("path")
+  const id = searchParams.get("id")
 
-  if (!storagePath || !storagePath.startsWith("storage://")) {
-    return NextResponse.json({ error: "Invalid path" }, { status: 400 })
+  if (!id) {
+    return NextResponse.json({ error: "Missing file id" }, { status: 400 })
   }
 
-  const supabase = await createServer()
-  const actualPath = storagePath.slice(9)
-
-  const { data } = await supabase.storage
-    .from("studio-files")
-    .createSignedUrl(actualPath, 3600)
-
-  if (!data?.signedUrl) {
+  const info = await getFileInfo(id)
+  if (!info) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
   }
 
-  return NextResponse.redirect(data.signedUrl)
+  const stream = await getFileStream(id)
+  const fileInfo = info as any & { filename: string; metadata?: { contentType?: string } }
+
+  return new NextResponse(stream as any, {
+    headers: {
+      "Content-Type": fileInfo.metadata?.contentType || "application/octet-stream",
+      "Content-Disposition": `inline; filename="${fileInfo.filename}"`,
+    },
+  })
 }

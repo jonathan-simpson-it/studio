@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
 import { auth } from '@/auth';
+import { connect } from '@/lib/db/connect';
+import { uploadToGridFS } from '@/lib/storage/gridfs';
+import { OcrTask } from '@/lib/db/models/calendar';
 
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
@@ -16,55 +17,37 @@ export async function POST(request: NextRequest) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const storagePath = `ocr-uploads/${session.user.id}/${Date.now()}-${file.name}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('files')
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false,
+  try {
+    const fileId = await uploadToGridFS(buffer, file.name, file.type);
+
+    await connect();
+    const task = await OcrTask.create({
+      user_id: session.user.id,
+      file_path: fileId,
+      status: 'processing',
     });
 
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    let rawText = '';
+    if (file.type.includes('pdf')) {
+      rawText = `PDF uploaded: ${file.name}\nFile ID: ${fileId}\nPlease use the parse endpoint to extract events.`;
+    } else if (file.type.includes('image')) {
+      rawText = `Image uploaded: ${file.name}\nFile ID: ${fileId}\nPlease use the parse endpoint to extract events with DeepSeek vision.`;
+    } else {
+      rawText = `File uploaded: ${file.name} (${file.type})\nFile ID: ${fileId}`;
+    }
+
+    await OcrTask.findByIdAndUpdate(task._id, { raw_text: rawText, status: 'done' });
+
+    return NextResponse.json({
+      task: task.toObject({ virtuals: true }),
+      rawText,
+      fileUrl: `/api/files/serve?id=${fileId}`,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Upload failed' },
+      { status: 500 }
+    );
   }
-
-  const { data: publicUrl } = supabase.storage
-    .from('files')
-    .getPublicUrl(storagePath);
-
-  const { data: task, error: taskError } = await supabase
-    .from('ocr_tasks')
-    .insert({
-      user_id: session.user.id,
-      file_path: storagePath,
-      status: 'processing',
-    })
-    .select()
-    .single();
-
-  if (taskError) {
-    return NextResponse.json({ error: taskError.message }, { status: 500 });
-  }
-
-  let rawText = '';
-
-  if (file.type.includes('pdf')) {
-    rawText = `PDF uploaded: ${file.name}\nURL: ${publicUrl.publicUrl}\nPlease use the parse endpoint to extract events.`;
-  } else if (file.type.includes('image')) {
-    rawText = `Image uploaded: ${file.name}\nURL: ${publicUrl.publicUrl}\nPlease use the parse endpoint to extract events with DeepSeek vision.`;
-  } else {
-    rawText = `File uploaded: ${file.name} (${file.type})\nURL: ${publicUrl.publicUrl}`;
-  }
-
-  await supabase
-    .from('ocr_tasks')
-    .update({ raw_text: rawText, status: 'done' })
-    .eq('id', task.id);
-
-  return NextResponse.json({
-    task,
-    rawText,
-    fileUrl: publicUrl.publicUrl,
-  });
 }

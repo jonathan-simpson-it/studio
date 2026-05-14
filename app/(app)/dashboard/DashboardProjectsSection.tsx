@@ -1,4 +1,4 @@
-import { createServer } from "@/lib/supabase/server"
+import { getActiveProjects } from "@/lib/db/actions/projects"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -15,12 +15,7 @@ function getStatusColor(status: string) {
 }
 
 export async function DashboardProjectsSection() {
-  const supabase = await createServer()
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, status")
-    .neq("status", "Completed")
+  const projects = await getActiveProjects()
 
   if (!projects || projects.length === 0) {
     return (

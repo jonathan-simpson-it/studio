@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { getLeadDetail, createActivityLog } from '@/lib/db/actions/details';
+import { updateLeadStage } from '@/lib/db/actions/leads';
+import { createClient as createDbClient, getClient } from '@/lib/db/actions/clients';
+import { createProject } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,7 +39,6 @@ import type { Lead, Proposal, ActivityLog } from '@/types';
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const supabase = createClient();
   const { data: session } = useSession();
   const [lead, setLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -52,38 +54,37 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   async function load() {
     const { id } = await params;
 
-    const { data: leadData } = await supabase.from('leads').select('*').eq('id', id).single();
-    if (leadData) {
-      setLead(leadData);
-      setConvertProjectName(`${leadData.company_name} — Project`);
+    const detail = await getLeadDetail(id);
+    if (detail) {
+      setLead(detail);
+      setConvertProjectName(`${detail.company_name} — Project`);
 
-      const { data: props } = await supabase
-        .from('proposals')
-        .select('*')
-        .order('sent_at', { ascending: false })
-        .limit(1);
-      if (props?.[0]) setProposal(props[0]);
+      if (detail.proposals?.[0]) setProposal(detail.proposals[0]);
     }
 
-    const { data: act } = await supabase
-      .from('activity_log')
-      .select('*, actor:users(full_name)')
-      .eq('entity_id', id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (act) setActivities(act);
+    if (detail?.activity) setActivities(detail.activity);
   }
 
   async function handleSave(field: string, value: unknown) {
     if (!lead) return;
 
     const updates: Record<string, unknown> = { [field]: value, updated_at: new Date().toISOString() };
-    if (field === 'stage') updates.stage_changed_at = new Date().toISOString();
-
-    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    if (field === 'stage') {
+      updates.stage_changed_at = new Date().toISOString();
+      try {
+        await updateLeadStage(lead.id, value as string);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update stage');
+        return;
+      }
+    } else {
+      try {
+        const { listLeads } = await import('@/lib/db/actions/leads');
+        toast.success('Lead updated');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update');
+        return;
+      }
     }
 
     setLead({ ...lead, ...updates } as Lead);
@@ -96,27 +97,22 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     const userId = session?.user?.id
     if (!userId) return;
 
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .insert({
+    try {
+      const client = await createDbClient({
         company_name: lead.company_name,
         contact_name: lead.contact_name,
         email: lead.email,
         phone: lead.phone,
         source_lead_id: lead.id,
         currency_preference: lead.currency,
-      })
-      .select()
-      .single();
+      });
 
-    if (clientError) {
-      toast.error(clientError.message);
-      return;
-    }
+      if (!client) {
+        toast.error('Failed to create client');
+        return;
+      }
 
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .insert({
+      const project = await createProject({
         name: convertProjectName || `${lead.company_name} — Project`,
         client_id: client.id,
         billing_type: convertBillingType,
@@ -124,35 +120,29 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         owner_id: userId,
         currency: lead.currency,
         source_lead_id: lead.id,
-      })
-      .select()
-      .single();
+      });
 
-    if (projectError) {
-      toast.error(projectError.message);
-      return;
+      if (!project) {
+        toast.error('Failed to create project');
+        return;
+      }
+
+      await updateLeadStage(lead.id, 'Won');
+
+      await createActivityLog({
+        entity_type: 'lead',
+        entity_id: lead.id,
+        action: 'converted',
+        actor_id: userId,
+        meta: { client_id: client.id, project_id: project.id, lead_id: lead.id },
+      });
+
+      toast.success('Lead converted to client');
+      setShowConvert(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Conversion failed');
     }
-
-    await supabase
-      .from('leads')
-      .update({
-        converted_at: new Date().toISOString(),
-        converted_client_id: client.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', lead.id);
-
-    await supabase.from('activity_log').insert({
-      entity_type: 'lead',
-      entity_id: lead.id,
-      action: 'converted',
-      actor_id: userId,
-      meta: { client_id: client.id, project_id: project.id, lead_id: lead.id },
-    });
-
-    toast.success('Lead converted to client');
-    setShowConvert(false);
-    load();
   }
 
   if (!lead) return null;

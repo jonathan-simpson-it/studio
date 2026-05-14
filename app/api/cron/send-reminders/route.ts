@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { connect } from '@/lib/db/connect';
+import { Reminder, Event } from '@/lib/db/models/calendar';
+import { User } from '@/lib/db/models/core';
 import { Resend } from 'resend';
 
 export async function GET(request: NextRequest) {
@@ -10,39 +12,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
-  const now = new Date().toISOString();
+  await connect();
+  const reminders = await Reminder.find({ is_sent: false, trigger_at: { $lte: new Date() } })
+    .limit(50).sort({ trigger_at: 1 }).lean({ virtuals: true });
 
-  const { data: reminders, error } = await supabase
-    .from('reminders')
-    .select('*, event:events(title, start_time, calendar_id, created_by)')
-    .eq('is_sent', false)
-    .lte('trigger_at', now)
-    .limit(50);
-
-  if (error || !reminders?.length) {
+  if (!reminders?.length) {
     return NextResponse.json({ sent: 0 });
   }
+
+  const eventIds = [...new Set(reminders.map((r: any) => r.event_id))];
+  const events = await Event.find({ _id: { $in: eventIds } })
+    .select('title start_time created_by').lean({ virtuals: true });
+  const eventMap = new Map(events.map((e: any) => [e._id.toString(), e]));
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
   let sent = 0;
 
   for (const reminder of reminders) {
-    const event = reminder.event as { title: string; start_time: string; created_by: string } | null;
+    const r = reminder as any;
+    const event = eventMap.get(r.event_id?.toString()) as any;
 
-    if (reminder.method === 'email' && event?.created_by) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('email')
-        .eq('id', event.created_by)
-        .single();
-
-      if (userData?.email) {
+    if (r.method === 'email' && event?.created_by) {
+      const userData = await User.findById(event.created_by).select('email').lean({ virtuals: true });
+      if ((userData as any)?.email) {
         try {
           await resend.emails.send({
             from: `Studio <${from}>`,
-            to: userData.email,
+            to: (userData as any).email,
             subject: `Reminder: ${event.title}`,
             text: `Your event "${event.title}" is coming up at ${new Date(event.start_time).toLocaleString()}.`,
           });
@@ -52,11 +49,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await supabase
-      .from('reminders')
-      .update({ is_sent: true })
-      .eq('id', reminder.id);
-
+    await Reminder.findByIdAndUpdate(r._id, { is_sent: true });
     sent++;
   }
 

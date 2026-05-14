@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { connect } from '@/lib/db/connect';
+import { Event } from '@/lib/db/models/calendar';
 import { auth } from '@/auth';
 import { detectConflicts } from '@/lib/calendar-engine/conflicts';
 import type { CalendarEvent } from '@/types';
@@ -7,7 +8,8 @@ import type { CalendarEvent } from '@/types';
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
+
+  await connect();
 
   const body = await request.json();
   const { calendar_id, start_time, end_time, rrule, exclude_event_id } = body;
@@ -16,11 +18,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'start_time and end_time required' }, { status: 400 });
   }
 
-  const { data: existing } = await supabase
-    .from('events')
-    .select('*')
-    .eq('calendar_id', calendar_id)
-    .neq('id', exclude_event_id || '');
+  const filter: Record<string, unknown> = { calendar_id };
+  if (exclude_event_id) {
+    filter._id = { $ne: exclude_event_id };
+  }
+
+  const existing = await Event.find(filter).lean({ virtuals: true });
 
   const newEvent = {
     id: '',

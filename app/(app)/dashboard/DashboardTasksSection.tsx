@@ -1,4 +1,4 @@
-import { createServer } from "@/lib/supabase/server"
+import { getUserTasks } from "@/lib/db/actions/projects"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 function getStatusColor(status: string) {
@@ -12,13 +12,7 @@ function getStatusColor(status: string) {
 }
 
 export async function DashboardTasksSection({ userId }: { userId?: string }) {
-  const supabase = await createServer()
-
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select("id, title, status, priority")
-    .eq("assignee_id", userId)
-    .neq("status", "Done")
+  const tasks = await getUserTasks(userId || '')
 
   if (!tasks || tasks.length === 0) {
     return (

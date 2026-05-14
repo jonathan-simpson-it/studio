@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { listNotes, createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +29,6 @@ import { toast } from 'sonner';
 import type { Note } from '@/types';
 
 export default function NotesPage() {
-  const supabase = createClient();
   const router = useRouter();
   const { data: session } = useSession();
   const [notes, setNotes] = useState<Note[]>([]);
@@ -44,12 +43,7 @@ export default function NotesPage() {
   async function load() {
     if (!session?.user?.id) return;
 
-    const { data } = await supabase
-      .from('notes')
-      .select('*')
-      .or(`visibility.eq.internal,and(visibility.eq.private,author_id.eq.${session.user.id}),and(visibility.eq.client-safe)`)
-      .order('created_at', { ascending: false });
-
+    const data = await listNotes();
     if (data) setNotes(data);
   }
 
@@ -76,12 +70,15 @@ export default function NotesPage() {
           <SheetContent side="right" className="w-full sm:max-w-lg">
             <SheetHeader><SheetTitle>New Note</SheetTitle></SheetHeader>
             <NoteForm onSubmit={async (data) => {
-              const userId = session?.user?.id
-              const { error } = await supabase.from('notes').insert({ ...data, author_id: userId });
-              if (error) { toast.error(error.message); return; }
-              toast.success('Note created');
-              setShowNewSheet(false);
-              load();
+              const userId = session?.user?.id;
+              try {
+                await createNote({ ...data, author_id: userId } as Record<string, unknown>);
+                toast.success('Note created');
+                setShowNewSheet(false);
+                load();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to create note');
+              }
             }} />
           </SheetContent>
         </Sheet>

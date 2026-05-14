@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getClientDetail } from '@/lib/db/actions/details';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,7 +13,6 @@ import type { Client, Project, Invoice, Proposal, Note, FileRecord, ActivityLog 
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const supabase = createClient();
   const [client, setClient] = useState<Client | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -27,31 +26,16 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   async function load() {
     const { id } = await params;
 
-    const { data: cl } = await supabase.from('clients').select('*').eq('id', id).single();
-    if (cl) setClient(cl);
+    const detail = await getClientDetail(id);
+    if (!detail) return;
 
-    const [
-      { data: projs },
-      { data: invs },
-      { data: props },
-      { data: nts },
-      { data: fls },
-      { data: acts },
-    ] = await Promise.all([
-      supabase.from('projects').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('invoices').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('proposals').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('notes').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('files').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('activity_log').select('*, actor:users(full_name)').eq('entity_id', id).order('created_at', { ascending: false }).limit(50),
-    ]);
-
-    if (projs) setProjects(projs);
-    if (invs) setInvoices(invs);
-    if (props) setProposals(props);
-    if (nts) setNotes(nts);
-    if (fls) setFiles(fls);
-    if (acts) setActivities(acts);
+    setClient(detail);
+    if (detail.projects) setProjects(detail.projects);
+    if (detail.invoices) setInvoices(detail.invoices);
+    if (detail.proposals) setProposals(detail.proposals);
+    if (detail.notes) setNotes(detail.notes);
+    if (detail.files) setFiles(detail.files);
+    if (detail.activity) setActivities(detail.activity);
   }
 
   if (!client) return null;

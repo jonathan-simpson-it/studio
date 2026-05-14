@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
 import { auth } from '@/auth';
+import { connect } from '@/lib/db/connect';
+import { ProjectRepo, SyncedGithubIssue } from '@/lib/db/models/projects';
 import { listIssues } from '@/lib/github';
-import type { SyncedGithubIssue } from '@/types';
 
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const supabase = await createServer();
 
   const body = await request.json();
   const { projectId } = body;
@@ -20,10 +18,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data: repos } = await supabase
-      .from('project_repos')
-      .select('*')
-      .eq('project_id', projectId);
+    await connect();
+
+    const repos = await ProjectRepo.find({ project_id: projectId }).lean({ virtuals: true });
 
     if (!repos || repos.length === 0) {
       return NextResponse.json({ error: 'No repos linked to this project' }, { status: 400 });
@@ -34,32 +31,32 @@ export async function POST(request: NextRequest) {
     const failures: { repo: string; issue: number; error: string }[] = []
 
     for (const repo of repos) {
-      const issues = await listIssues(repo.full_name)
+      const issues = await listIssues((repo as any).full_name)
       for (const issue of issues) {
-        const { error } = await supabase.from("synced_github_issues").upsert(
-          {
-            github_issue_id: issue.number,
-            repo_id: repo.id,
-            project_id: projectId,
-            title: issue.title,
-            body: issue.body || "",
-            state: issue.state,
-            assignee_github_login: issue.assignee?.login || null,
-            labels: issue.labels.map((l: any) => ({ name: l.name, color: l.color })),
-            milestone_title: issue.milestone?.title || null,
-            github_url: issue.html_url,
-            created_at_github: issue.created_at,
-            updated_at_github: issue.updated_at,
-            synced_at: new Date().toISOString(),
-          },
-          { onConflict: "github_issue_id" }
-        )
-
-        if (error) {
-          totalFailed++
-          failures.push({ repo: repo.full_name, issue: issue.number, error: error.message })
-        } else {
+        try {
+          await SyncedGithubIssue.findOneAndUpdate(
+            { github_issue_id: issue.number },
+            {
+              github_issue_id: issue.number,
+              repo_id: (repo as any)._id.toString(),
+              project_id: projectId,
+              title: issue.title,
+              body: issue.body || "",
+              state: issue.state,
+              assignee_github_login: issue.assignee?.login || null,
+              labels: issue.labels.map((l: any) => ({ name: l.name, color: l.color })),
+              milestone_title: issue.milestone?.title || null,
+              github_url: issue.html_url,
+              created_at_github: issue.created_at,
+              updated_at_github: issue.updated_at,
+              synced_at: new Date().toISOString(),
+            },
+            { upsert: true }
+          )
           totalSynced++
+        } catch (err) {
+          totalFailed++
+          failures.push({ repo: (repo as any).full_name, issue: issue.number, error: (err as Error).message })
         }
       }
     }

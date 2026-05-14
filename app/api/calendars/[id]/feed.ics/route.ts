@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { connect } from '@/lib/db/connect';
+import { Calendar, Event, CalendarShare } from '@/lib/db/models/calendar';
 import { auth } from '@/auth';
 import { generateICS } from '@/lib/calendar-engine/ics';
 
@@ -8,52 +9,44 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  const supabase = await createServer();
   const { id } = await params;
   const token = request.nextUrl.searchParams.get('token');
 
-  let eventsData;
+  await connect();
+
+  let eventsData: { data: any[]; name: string } | null = null;
 
   if (session?.user) {
-    const { data: cal } = await supabase
-      .from('calendars')
-      .select('name')
-      .eq('id', id)
-      .single();
+    const cal = await Calendar.findById(id).select('name').lean({ virtuals: true }) as { _id: string; name: string } | null;
 
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .eq('calendar_id', id)
-      .gte('start_time', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString())
-      .order('start_time');
+    const data = await Event.find({
+      calendar_id: id,
+      start_time: {
+        $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        $lte: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      },
+    })
+      .sort({ start_time: 1 })
+      .lean({ virtuals: true });
 
-    eventsData = { data, name: cal?.name };
+    eventsData = { data: data as any[], name: cal?.name || 'Studio Calendar' };
   } else if (token) {
-    const { data: share } = await supabase
-      .from('calendar_shares')
-      .select('calendar_id')
-      .eq('token', token)
-      .eq('is_active', true)
-      .single();
+    const share = await CalendarShare.findOne({ token, is_active: true }).select('calendar_id').lean({ virtuals: true }) as { calendar_id: string } | null;
 
     if (share) {
-      const { data: cal } = await supabase
-        .from('calendars')
-        .select('name')
-        .eq('id', share.calendar_id)
-        .single();
+      const cal = await Calendar.findById(share.calendar_id).select('name').lean({ virtuals: true }) as { _id: string; name: string } | null;
 
-      const { data } = await supabase
-        .from('events')
-        .select('*')
-        .eq('calendar_id', share.calendar_id)
-        .gte('start_time', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString())
-        .order('start_time');
+      const data = await Event.find({
+        calendar_id: share.calendar_id,
+        start_time: {
+          $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          $lte: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        },
+      })
+        .sort({ start_time: 1 })
+        .lean({ virtuals: true });
 
-      eventsData = { data, name: cal?.name };
+      eventsData = { data: data as any[], name: cal?.name || 'Studio Calendar' };
     }
   }
 
@@ -62,7 +55,7 @@ export async function GET(
   }
 
   const icsString = generateICS(
-    (eventsData.data || []).map((ev) => ({
+    (eventsData.data || []).map((ev: any) => ({
       summary: ev.title,
       description: ev.description,
       location: ev.location,

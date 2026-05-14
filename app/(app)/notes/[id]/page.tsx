@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getNote, updateNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,6 @@ import { toast } from 'sonner';
 import type { Note } from '@/types';
 
 export default function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createClient();
   const router = useRouter();
   const [note, setNote] = useState<Note | null>(null);
 
@@ -30,16 +29,19 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
 
   async function load() {
     const { id } = await params;
-    const { data } = await supabase.from('notes').select('*').eq('id', id).single();
+    const data = await getNote(id);
     if (data) setNote(data);
   }
 
   async function handleSave(field: string, value: unknown) {
     if (!note) return;
-    const { error } = await supabase.from('notes').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', note.id);
-    if (error) { toast.error(error.message); return; }
-    setNote({ ...note, [field]: value } as Note);
-    toast.success('Note updated');
+    try {
+      await updateNote(note.id, { [field]: value } as Record<string, unknown>);
+      setNote({ ...note, [field]: value } as Note);
+      toast.success('Note updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    }
   }
 
   if (!note) return null;

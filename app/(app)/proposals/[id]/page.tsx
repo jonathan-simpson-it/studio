@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { getProposal, updateProposal, createInvoice, getInvoiceNumber } from '@/lib/db/actions/invoices';
+import { listClients } from '@/lib/db/actions/clients';
+import { createProject } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,7 +34,6 @@ import { toast } from 'sonner';
 import type { Proposal, Client, LineItem } from '@/types';
 
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createClient();
   const router = useRouter();
   const { data: session } = useSession();
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -44,12 +45,12 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
 
   async function load() {
     const { id } = await params;
-    const { data: p } = await supabase.from('proposals').select('*').eq('id', id).single();
+    const p = await getProposal(id);
     if (p) {
       setProposal(p);
       setLineItems(p.line_items as LineItem[] || []);
     }
-    const { data: cl } = await supabase.from('clients').select('*');
+    const cl = await listClients();
     if (cl) setClients(cl);
   }
 
@@ -77,62 +78,64 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
 
   async function handleSave() {
     if (!proposal) return;
-    const { error } = await supabase
-      .from('proposals')
-      .update({ line_items: lineItems, subtotal, total, updated_at: new Date().toISOString() })
-      .eq('id', proposal.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Proposal saved');
+    try {
+      await updateProposal(proposal.id, { line_items: lineItems, subtotal, total } as Record<string, unknown>);
+      toast.success('Proposal saved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save');
+    }
   }
 
   async function handleSend() {
     if (!proposal) return;
     await handleSave();
-    const { error } = await supabase
-      .from('proposals')
-      .update({ status: 'Sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', proposal.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Proposal marked as sent');
-    load();
+    try {
+      await updateProposal(proposal.id, { status: 'Sent', sent_at: new Date().toISOString() } as Record<string, unknown>);
+      toast.success('Proposal marked as sent');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send');
+    }
   }
 
   async function handleAccept() {
     if (!proposal) return;
-    const userId = session?.user?.id
+    const userId = session?.user?.id;
 
-    await supabase
-      .from('proposals')
-      .update({ status: 'Accepted', accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', proposal.id);
+    try {
+      await updateProposal(proposal.id, { status: 'Accepted', accepted_at: new Date().toISOString() } as Record<string, unknown>);
 
-    if (!proposal.project_id) {
-      await supabase.from('projects').insert({
-        name: `Project from ${proposal.proposal_number}`,
+      if (!proposal.project_id) {
+        await createProject({
+          name: `Project from ${proposal.proposal_number}`,
+          client_id: proposal.client_id,
+          billing_type: 'One-off',
+          status: 'Planning',
+          owner_id: userId,
+          currency: proposal.currency,
+          source_proposal_id: proposal.id,
+        });
+      }
+
+      const invoiceNumber = await getInvoiceNumber();
+      await createInvoice({
+        invoice_number: invoiceNumber,
         client_id: proposal.client_id,
-        billing_type: 'One-off',
-        status: 'Planning',
-        owner_id: userId,
+        project_id: proposal.project_id,
+        status: 'Draft',
         currency: proposal.currency,
-        source_proposal_id: proposal.id,
+        line_items: lineItems,
+        subtotal,
+        total,
+        created_by: userId,
       });
+
+      toast.success('Proposal accepted. Invoice draft created.');
+      setShowAccept(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to accept');
     }
-
-    await supabase.from('invoices').insert({
-      invoice_number: `INV-${new Date().getFullYear()}-001`,
-      client_id: proposal.client_id,
-      project_id: proposal.project_id,
-      status: 'Draft',
-      currency: proposal.currency,
-      line_items: lineItems,
-      subtotal,
-      total,
-      created_by: userId,
-    });
-
-    toast.success('Proposal accepted. Invoice draft created.');
-    setShowAccept(false);
-    load();
   }
 
   if (!proposal) return null;
@@ -169,7 +172,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           )}
           {proposal.status === 'Sent' && (
             <Button variant="outline" onClick={async () => {
-              await supabase.from('proposals').update({ status: 'Rejected', updated_at: new Date().toISOString() }).eq('id', proposal.id);
+              await updateProposal(proposal.id, { status: 'Rejected' } as Record<string, unknown>);
               toast.success('Proposal rejected');
               load();
             }}>
@@ -292,6 +295,6 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
   async function handleField(field: string, value: unknown) {
     if (!proposal) return;
     setProposal({ ...proposal, [field]: value } as Proposal);
-    await supabase.from('proposals').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', proposal.id);
+    await updateProposal(proposal.id, { [field]: value } as Record<string, unknown>);
   }
 }

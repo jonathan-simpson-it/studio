@@ -1,4 +1,5 @@
-import { createServer } from "@/lib/supabase/server"
+import { connect } from "@/lib/db/connect"
+import { ApiKey } from "@/lib/db/models/core"
 import crypto from "crypto"
 
 export async function validateApiKey(
@@ -12,15 +13,9 @@ export async function validateApiKey(
 
   const rawKey = authHeader.slice(7)
 
-  const supabase = await createServer()
+  await connect()
 
-  const { data: keys, error } = await supabase
-    .from("api_keys")
-    .select("id, key_hash, scope, is_active")
-
-  if (error || !keys) {
-    return { valid: false, error: "Failed to validate API key" }
-  }
+  const keys = await ApiKey.find().lean()
 
   for (const key of keys) {
     const hash = crypto.createHash("sha256").update(rawKey).digest("hex")
@@ -35,9 +30,9 @@ export async function validateApiKey(
         return { valid: false, error: `Insufficient scope. Requires ${requiredScope}, has ${key.scope}` }
       }
 
-      await supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id)
+      await ApiKey.findByIdAndUpdate(key._id, { last_used_at: new Date() })
 
-      return { valid: true, keyId: key.id }
+      return { valid: true, keyId: key._id.toString() }
     }
   }
 

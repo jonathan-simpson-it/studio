@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { getCurrentUser } from '@/lib/db/actions/settings';
+import { getDailyExpenses, createDailyExpense, deleteDailyExpense } from '@/lib/db/actions/calendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,7 +45,6 @@ interface ExpenseWidgetProps {
 }
 
 export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
-  const supabase = createClient();
   const [expenses, setExpenses] = useState<DailyExpense[]>([]);
   const [open, setOpen] = useState(false);
   const [nlInput, setNlInput] = useState('');
@@ -55,12 +55,7 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
 
   async function loadExpenses() {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const { data } = await supabase
-      .from('daily_expenses')
-      .select('*')
-      .eq('date', today)
-      .order('created_at', { ascending: false });
-
+    const data = await getDailyExpenses(today);
     if (data) setExpenses(data);
   }
 
@@ -79,35 +74,36 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
 
   async function addExpense() {
     if (!amount || parseFloat(amount) <= 0) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const currentUser = await getCurrentUser();
 
-    const { error } = await supabase.from('daily_expenses').insert({
-      amount: parseFloat(amount),
-      category,
-      note: note || null,
-      date: expenseDate,
-      user_id: user?.id,
-    });
-
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      await createDailyExpense({
+        amount: parseFloat(amount),
+        category,
+        note: note || null,
+        date: expenseDate,
+        user_id: currentUser?.id,
+      });
+      toast.success('Expense added');
+      setAmount('');
+      setCategory('Other');
+      setNote('');
+      setNlInput('');
+      setOpen(false);
+      loadExpenses();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add expense');
     }
-
-    toast.success('Expense added');
-    setAmount('');
-    setCategory('Other');
-    setNote('');
-    setNlInput('');
-    setOpen(false);
-    loadExpenses();
   }
 
   async function deleteExpense(id: string) {
-    const { error } = await supabase.from('daily_expenses').delete().eq('id', id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Expense deleted');
-    loadExpenses();
+    try {
+      await deleteDailyExpense(id);
+      toast.success('Expense deleted');
+      loadExpenses();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete expense');
+    }
   }
 
   const todayExpenses = expenses.filter((e) => e.date === format(date, 'yyyy-MM-dd'));

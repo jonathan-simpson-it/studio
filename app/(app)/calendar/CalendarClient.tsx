@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getCurrentUser } from '@/lib/db/actions/settings';
+import { listCalendars, getEventsForCalendar, createEvent, updateEvent, deleteEvent } from '@/lib/db/actions/calendar';
 import { Button } from '@/components/ui/button';
 import { MonthView } from './MonthView';
 import { WeekView } from './WeekView';
@@ -90,7 +91,6 @@ export default function CalendarClient({
   githubIssues: SyntheticGithubIssue[];
 }) {
   const router = useRouter();
-  const supabase = createClient();
   const [calendars, setCalendars] = useState<Calendar[]>(initCalendars);
   const [events, setEvents] = useState<CalendarEvent[]>(initEvents);
   const [selectedCalendars, setSelectedCalendars] = useState<Set<string>>(
@@ -176,9 +176,19 @@ export default function CalendarClient({
   }, [calendars, events, tasks, milestones, invoices, proposals, githubIssues]);
 
   const loadEvents = useCallback(async () => {
-    const { data } = await supabase.from('events').select('*').order('start_time');
-    if (data) setEvents(data);
-  }, [supabase]);
+    const data = await listCalendars();
+    if (data) {
+      const allCals = await listCalendars();
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      const allEvts = await Promise.all(
+        allCals.map((cal: any) => getEventsForCalendar(cal.id, monthStart, monthEnd))
+      );
+      setEvents(allEvts.flat());
+      setCalendars(allCals);
+    }
+  }, []);
 
   function navigatePrev() {
     if (view === 'month') setCurrentDate(subMonths(currentDate, 1));
@@ -236,26 +246,31 @@ export default function CalendarClient({
   }
 
   async function handleSave(eventData: Partial<CalendarEvent>) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const currentUser = await getCurrentUser();
 
     if (editingEvent) {
-      const { error } = await supabase
-        .from('events')
-        .update({ ...eventData, updated_at: new Date().toISOString() })
-        .eq('id', editingEvent.id);
-      if (error) { toast.error(error.message); return; }
-      toast.success('Event updated');
+      try {
+        await updateEvent(editingEvent.id, { ...eventData } as Record<string, unknown>);
+        toast.success('Event updated');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update event');
+        return;
+      }
     } else {
       const calId = eventData.calendar_id || calendars[0]?.id;
       if (!calId) { toast.error('No calendar available'); return; }
 
-      const { error } = await supabase.from('events').insert({
-        ...eventData,
-        calendar_id: calId,
-        created_by: user?.id,
-      });
-      if (error) { toast.error(error.message); return; }
-      toast.success('Event created');
+      try {
+        await createEvent({
+          ...eventData,
+          calendar_id: calId,
+          created_by: currentUser?.id,
+        });
+        toast.success('Event created');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to create event');
+        return;
+      }
     }
 
     setModalOpen(false);
@@ -264,9 +279,13 @@ export default function CalendarClient({
   }
 
   async function handleDelete(eventId: string) {
-    const { error } = await supabase.from('events').delete().eq('id', eventId);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Event deleted');
+    try {
+      await deleteEvent(eventId);
+      toast.success('Event deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete event');
+      return;
+    }
     setModalOpen(false);
     setEditingEvent(null);
     loadEvents();

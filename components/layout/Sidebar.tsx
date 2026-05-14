@@ -19,6 +19,7 @@ import {
   Settings,
   Search,
   Calendar,
+  Inbox,
 } from 'lucide-react';
 
 const navItems = [
@@ -35,6 +36,7 @@ const navItemsSecondary = [
   { href: '/proposals', label: 'Proposals', icon: FileText },
   { href: '/invoices', label: 'Invoices', icon: Receipt },
   { href: '/finance', label: 'Finance', icon: DollarSign },
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
 ];
 
 export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {

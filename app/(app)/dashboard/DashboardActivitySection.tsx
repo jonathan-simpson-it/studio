@@ -1,4 +1,4 @@
-import { createServer } from "@/lib/supabase/server"
+import { getRecentActivity } from "@/lib/db/actions/details"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { formatRelative } from "@/lib/utils"
@@ -23,13 +23,7 @@ function ActivityItem({ entry }: { entry: { id: string; action: string; entity_t
 }
 
 export async function DashboardActivitySection() {
-  const supabase = await createServer()
-
-  const { data: activity } = await supabase
-    .from("activity_log")
-    .select("id, entity_type, action, created_at, actor_id, actor:users(full_name)")
-    .order("created_at", { ascending: false })
-    .limit(10)
+  const activity = await getRecentActivity()
 
   const typed = (activity || []) as { id: string; entity_type: string; action: string; created_at: string; actor?: { full_name?: string } }[]
 

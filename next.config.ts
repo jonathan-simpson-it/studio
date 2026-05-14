@@ -3,12 +3,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '*.supabase.co',
-      },
-    ],
+    remotePatterns: [],
   },
   turbopack: {
     root: path.resolve(__dirname),

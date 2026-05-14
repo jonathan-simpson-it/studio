@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { connect } from '@/lib/db/connect';
+import { Calendar, CalendarMember, Event } from '@/lib/db/models/calendar';
 import { auth } from '@/auth';
 
 export async function GET(
@@ -8,18 +9,18 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const { id } = await params;
 
-  const { data, error } = await supabase
-    .from('calendars')
-    .select('*, members:calendar_members(*), events(*)')
-    .eq('id', id)
-    .single();
+  await connect();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json(data);
+  const calendar = await Calendar.findById(id).lean({ virtuals: true });
+  if (!calendar) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const members = await CalendarMember.find({ calendar_id: id }).lean({ virtuals: true });
+  const events = await Event.find({ calendar_id: id }).lean({ virtuals: true });
+
+  return NextResponse.json({ ...calendar, members, events });
 }
 
 export async function PUT(
@@ -28,20 +29,16 @@ export async function PUT(
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const { id } = await params;
   const body = await request.json();
   const { name, color } = body;
 
-  const { data, error } = await supabase
-    .from('calendars')
-    .update({ name, color })
-    .eq('id', id)
-    .select()
-    .single();
+  await connect();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const data = await Calendar.findByIdAndUpdate(id, { name, color }, { new: true }).lean({ virtuals: true });
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   return NextResponse.json(data);
 }
 
@@ -51,11 +48,11 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const { id } = await params;
 
-  const { error } = await supabase.from('calendars').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await connect();
+  await Calendar.findByIdAndDelete(id);
+
   return NextResponse.json({ success: true });
 }

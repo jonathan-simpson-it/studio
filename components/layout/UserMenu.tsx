@@ -9,10 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 export default function UserMenu() {
@@ -20,10 +19,9 @@ export default function UserMenu() {
   const { data: session } = useSession()
   const userName = session?.user?.name || "User"
   const userEmail = session?.user?.email || ""
+  const userImage = session?.user?.image || null
 
   async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
     await signOut({ redirect: false })
     toast.success("Signed out")
     router.push("/login")
@@ -35,6 +33,7 @@ export default function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar className="h-8 w-8">
+            <AvatarImage src={userImage || undefined} alt={userName} />
             <AvatarFallback className="text-xs bg-muted">
               {userName.slice(0, 2).toUpperCase()}
             </AvatarFallback>

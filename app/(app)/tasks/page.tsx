@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { listTasks, createTask } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,7 +36,6 @@ import { toast } from 'sonner';
 import type { Task } from '@/types';
 
 export default function TasksPage() {
-  const supabase = createClient();
   const { data: session } = useSession();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState<'board' | 'table'>('board');
@@ -48,7 +47,7 @@ export default function TasksPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
+    const data = await listTasks();
     if (data) setTasks(data);
   }
 
@@ -97,12 +96,15 @@ export default function TasksPage() {
           <SheetContent>
             <SheetHeader><SheetTitle>New Task</SheetTitle></SheetHeader>
             <TaskForm onSubmit={async (data) => {
-              const userId = session?.user?.id
-              const { error } = await supabase.from('tasks').insert({ ...data, created_by: userId });
-              if (error) { toast.error(error.message); return; }
-              toast.success('Task created');
-              setShowNewSheet(false);
-              load();
+              const userId = session?.user?.id;
+              try {
+                await createTask({ ...data, created_by: userId } as Record<string, unknown>);
+                toast.success('Task created');
+                setShowNewSheet(false);
+                load();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to create task');
+              }
             }} />
           </SheetContent>
         </Sheet>

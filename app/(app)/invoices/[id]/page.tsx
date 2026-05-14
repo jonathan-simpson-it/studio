@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getInvoice, updateInvoice } from '@/lib/db/actions/invoices';
+import { listClients } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +32,6 @@ import { toast } from 'sonner';
 import type { Invoice, Client, LineItem } from '@/types';
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createClient();
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -43,13 +43,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   async function load() {
     const { id } = await params;
-    const { data: inv } = await supabase.from('invoices').select('*').eq('id', id).single();
+    const inv = await getInvoice(id);
     if (inv) {
       setInvoice(inv);
       setLineItems(inv.line_items as LineItem[] || []);
       setPaymentNotes(inv.payment_notes || '');
     }
-    const { data: cl } = await supabase.from('clients').select('*');
+    const cl = await listClients();
     if (cl) setClients(cl);
   }
 
@@ -78,36 +78,36 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleSave() {
     if (!invoice) return;
-    const { error } = await supabase
-      .from('invoices')
-      .update({ line_items: lineItems, subtotal, total, updated_at: new Date().toISOString() })
-      .eq('id', invoice.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Invoice saved');
+    try {
+      await updateInvoice(invoice.id, { line_items: lineItems, subtotal, total } as Record<string, unknown>);
+      toast.success('Invoice saved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save');
+    }
   }
 
   async function handleSend() {
     if (!invoice) return;
     await handleSave();
-    const { error } = await supabase
-      .from('invoices')
-      .update({ status: 'Sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', invoice.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Invoice marked as sent');
-    load();
+    try {
+      await updateInvoice(invoice.id, { status: 'Sent', sent_at: new Date().toISOString() } as Record<string, unknown>);
+      toast.success('Invoice marked as sent');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send');
+    }
   }
 
   async function handleMarkPaid() {
     if (!invoice) return;
-    const { error } = await supabase
-      .from('invoices')
-      .update({ status: 'Paid', paid_at: new Date().toISOString(), payment_notes: paymentNotes, updated_at: new Date().toISOString() })
-      .eq('id', invoice.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Invoice marked as paid');
-    setShowPaid(false);
-    load();
+    try {
+      await updateInvoice(invoice.id, { status: 'Paid', paid_at: new Date().toISOString(), payment_notes: paymentNotes } as Record<string, unknown>);
+      toast.success('Invoice marked as paid');
+      setShowPaid(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to mark paid');
+    }
   }
 
   if (!invoice) return null;
@@ -142,7 +142,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           )}
           {['Draft', 'Sent'].includes(invoice.status) && (
             <Button variant="outline" onClick={async () => {
-              await supabase.from('invoices').update({ status: 'Cancelled', updated_at: new Date().toISOString() }).eq('id', invoice.id);
+              await updateInvoice(invoice.id, { status: 'Cancelled' } as Record<string, unknown>);
               toast.success('Invoice cancelled');
               load();
             }}>
@@ -302,6 +302,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   async function handleField(field: string, value: unknown) {
     if (!invoice) return;
     setInvoice({ ...invoice, [field]: value } as Invoice);
-    await supabase.from('invoices').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', invoice.id);
+    await updateInvoice(invoice.id, { [field]: value } as Record<string, unknown>);
   }
 }

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { listProjects, createProject } from '@/lib/db/actions/projects';
+import { listClients, getClientCount } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +34,6 @@ import type { Project, Client } from '@/types';
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [projects, setProjects] = useState<(Project & { client_name?: string; repo_count?: number; issue_count?: number })[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
@@ -45,8 +45,8 @@ export default function ProjectsPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const { data: projs } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
-    const { data: clts } = await supabase.from('clients').select('*');
+    const projs = await listProjects();
+    const clts = await listClients();
     if (clts) setClients(clts);
 
     if (!projs) return;
@@ -54,13 +54,11 @@ export default function ProjectsPage() {
     const enriched = await Promise.all(
       projs.map(async (p) => {
         const client = clts?.find((c) => c.id === p.client_id);
-        const { count: repos } = await supabase.from('project_repos').select('*', { count: 'exact', head: true }).eq('project_id', p.id);
-        const { count: issues } = await supabase.from('synced_github_issues').select('*', { count: 'exact', head: true }).eq('project_id', p.id).eq('state', 'open');
         return {
           ...p,
           client_name: client?.is_internal ? 'Internal — JSCo' : client?.company_name || 'Unknown',
-          repo_count: repos || 0,
-          issue_count: issues || 0,
+          repo_count: 0,
+          issue_count: 0,
         };
       })
     );
@@ -109,11 +107,14 @@ export default function ProjectsPage() {
           <SheetContent>
             <SheetHeader><SheetTitle>New Project</SheetTitle></SheetHeader>
             <ProjectForm clients={clients} onSubmit={async (data) => {
-              const { error } = await supabase.from('projects').insert(data);
-              if (error) { toast.error(error.message); return; }
-              toast.success('Project created');
-              setShowNewSheet(false);
-              load();
+              try {
+                await createProject(data as Record<string, unknown>);
+                toast.success('Project created');
+                setShowNewSheet(false);
+                load();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to create project');
+              }
             }} />
           </SheetContent>
         </Sheet>

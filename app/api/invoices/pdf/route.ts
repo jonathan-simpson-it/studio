@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
 import { auth } from '@/auth';
+import { getInvoice, updateInvoice } from '@/lib/db/actions/invoices';
+import { uploadToGridFS } from '@/lib/storage/gridfs';
 
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const supabase = await createServer();
 
   const body = await request.json();
   const { invoiceId } = body;
@@ -18,11 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('*, client:clients(*)')
-      .eq('id', invoiceId)
-      .single();
+    const invoice = await getInvoice(invoiceId);
 
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
@@ -31,30 +26,12 @@ export async function POST(request: NextRequest) {
     const { generateInvoicePDF } = await import('@/lib/pdf');
     const pdfBuffer = await generateInvoicePDF(invoice);
 
-    const timestamp = Date.now();
-    const storagePath = `invoices/${invoiceId}/${timestamp}_${invoice.invoice_number}.pdf`;
+    const fileId = await uploadToGridFS(pdfBuffer, `${invoice.invoice_number}.pdf`, 'application/pdf');
 
-    const { error: uploadError } = await supabase.storage
-      .from('studio-files')
-      .upload(storagePath, pdfBuffer, {
-        contentType: 'application/pdf',
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data: signedUrlData } = await supabase.storage
-      .from('studio-files')
-      .createSignedUrl(storagePath, 604800);
-
-    const signedUrl = signedUrlData?.signedUrl || null;
-
-    await supabase
-      .from('invoices')
-      .update({ pdf_url: `storage://${storagePath}` })
-      .eq('id', invoiceId);
+    await updateInvoice(invoiceId, { pdf_url: fileId });
 
     return NextResponse.json({
-      pdfUrl: signedUrl,
+      pdfUrl: `/api/files/serve?id=${fileId}`,
       buffer: pdfBuffer.toString('base64'),
     });
   } catch (error) {

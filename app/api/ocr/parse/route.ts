@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
 import { auth } from '@/auth';
+import { connect } from '@/lib/db/connect';
+import { OcrTask } from '@/lib/db/models/calendar';
 
 const DEEPSEEK_MODEL = 'deepseek-chat';
 
@@ -52,7 +53,6 @@ If a field is not found, use null. Do not include any explanation or other text.
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
 
   const body = await request.json();
   const { rawText, taskId } = body;
@@ -73,14 +73,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (taskId) {
-      await supabase
-        .from('ocr_tasks')
-        .update({
-          parsed_json: parsedJson,
-          status: 'done',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
+      await connect();
+      await OcrTask.findByIdAndUpdate(taskId, {
+        parsed_json: parsedJson,
+        status: 'done',
+        updated_at: new Date(),
+      });
     }
 
     return NextResponse.json({
@@ -89,13 +87,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (taskId) {
-      await supabase
-        .from('ocr_tasks')
-        .update({
-          status: 'failed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
+      await connect();
+      await OcrTask.findByIdAndUpdate(taskId, {
+        status: 'failed',
+        updated_at: new Date(),
+      });
     }
 
     return NextResponse.json(

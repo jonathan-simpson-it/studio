@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { listFinanceData, createCost } from '@/lib/db/actions/finance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CurrencyBadge } from '@/components/shared/CurrencyBadge';
 import { formatCurrency } from '@/lib/utils';
 import {
   Plus,
@@ -36,7 +35,6 @@ import { toast } from 'sonner';
 import type { Invoice, Cost, Client } from '@/types';
 
 export default function FinancePage() {
-  const supabase = createClient();
   const { data: session } = useSession();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [costs, setCosts] = useState<Cost[]>([]);
@@ -46,14 +44,12 @@ export default function FinancePage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const [invRes, costRes, clRes] = await Promise.all([
-      supabase.from('invoices').select('*'),
-      supabase.from('costs').select('*').order('date', { ascending: false }),
-      supabase.from('clients').select('*'),
-    ]);
-    if (invRes.data) setInvoices(invRes.data);
-    if (costRes.data) setCosts(costRes.data);
-    if (clRes.data) setClients(clRes.data);
+    const data = await listFinanceData();
+    if (data) {
+      setInvoices(data.invoices);
+      setCosts(data.costs);
+      setClients(data.clients);
+    }
   }
 
   const paidInvoices = invoices.filter((i) => i.status === 'Paid');
@@ -191,12 +187,15 @@ export default function FinancePage() {
               <SheetContent>
                 <SheetHeader><SheetTitle>Add Cost</SheetTitle></SheetHeader>
                 <CostForm clients={clients} onSubmit={async (data) => {
-                  const userId = session?.user?.id
-                  const { error } = await supabase.from('costs').insert({ ...data, created_by: userId });
-                  if (error) { toast.error(error.message); return; }
-                  toast.success('Cost added');
-                  setShowCostSheet(false);
-                  load();
+                  const userId = session?.user?.id;
+                  try {
+                    await createCost({ ...data, created_by: userId } as Record<string, unknown>);
+                    toast.success('Cost added');
+                    setShowCostSheet(false);
+                    load();
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to add cost');
+                  }
                 }} />
               </SheetContent>
             </Sheet>

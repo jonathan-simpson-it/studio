@@ -1,4 +1,7 @@
-import { createServer } from '@/lib/supabase/server';
+import { auth } from '@/auth';
+import { listCalendars, getAllEvents, ensureDefaultCalendar } from '@/lib/db/actions/calendar';
+import { getAllTasksWithDueDates, getAllMilestonesWithDueDates, getAllSyncedIssuesWithDueDates } from '@/lib/db/actions/projects';
+import { getAllInvoicesWithDueDates, getAllProposalsWithExpiry } from '@/lib/db/actions/invoices';
 import CalendarClient from './CalendarClient';
 
 export const metadata = {
@@ -6,57 +9,42 @@ export const metadata = {
 };
 
 export default async function CalendarPage() {
-  const supabase = await createServer();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
 
   const [
-    calendarsResult,
-    eventsResult,
-    tasksResult,
-    milestonesResult,
-    invoicesResult,
-    proposalsResult,
-    githubIssuesResult,
+    calendars,
+    events,
+    tasks,
+    milestones,
+    invoices,
+    proposals,
+    githubIssues,
   ] = await Promise.all([
-    supabase.from('calendars').select('*').order('created_at'),
-    supabase.from('events').select('*').order('start_time'),
-    supabase.from('tasks').select('id, title, due_date, project_id, assignee_id').not('due_date', 'is', null),
-    supabase.from('milestones').select('id, title, due_date, project_id').not('due_date', 'is', null),
-    supabase.from('invoices').select('id, invoice_number, due_date, client_id, project_id').not('due_date', 'is', null),
-    supabase.from('proposals').select('id, proposal_number, client_id, expires_at').not('expires_at', 'is', null),
-    supabase
-      .from('synced_github_issues')
-      .select('id, title, github_url, project_id, milestone_due_on')
-      .not('milestone_due_on', 'is', null),
+    listCalendars(),
+    getAllEvents(),
+    getAllTasksWithDueDates(),
+    getAllMilestonesWithDueDates(),
+    getAllInvoicesWithDueDates(),
+    getAllProposalsWithExpiry(),
+    getAllSyncedIssuesWithDueDates(),
   ]);
 
-  const calendars = calendarsResult.data || [];
+  const userId = session?.user?.id;
 
-  if (calendars.length === 0 && user) {
-    const { data: newCal } = await supabase
-      .from('calendars')
-      .insert({ name: 'Personal', color: '#3b82f6', is_default: true, created_by: user.id })
-      .select()
-      .single();
-
-    if (newCal) {
-      calendars.push(newCal);
-      await supabase
-        .from('calendar_members')
-        .insert({ calendar_id: newCal.id, user_id: user.id, role: 'OWNER' })
-        .select();
-    }
+  if (calendars.length === 0 && userId) {
+    const newCal = await ensureDefaultCalendar(userId);
+    calendars.push(newCal);
   }
 
   return (
     <CalendarClient
-      calendars={calendars}
-      events={eventsResult.data || []}
-      tasks={tasksResult.data || []}
-      milestones={milestonesResult.data || []}
-      invoices={invoicesResult.data || []}
-      proposals={proposalsResult.data || []}
-      githubIssues={githubIssuesResult.data || []}
+      calendars={calendars as any[]}
+      events={events as any[]}
+      tasks={tasks as any[]}
+      milestones={milestones as any[]}
+      invoices={invoices as any[]}
+      proposals={proposals as any[]}
+      githubIssues={githubIssues as any[]}
     />
   );
 }

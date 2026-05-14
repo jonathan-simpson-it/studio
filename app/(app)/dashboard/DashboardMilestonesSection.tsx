@@ -1,4 +1,4 @@
-import { createServer } from "@/lib/supabase/server"
+import { getMilestoneStats } from "@/lib/db/actions/projects"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
@@ -12,13 +12,7 @@ function getStatusColor(status: string) {
 }
 
 export async function DashboardMilestonesSection() {
-  const supabase = await createServer()
-
-  const { data: milestones } = await supabase
-    .from("milestones")
-    .select("id, title, due_date, status")
-    .gte("due_date", new Date().toISOString().split("T")[0])
-    .neq("status", "Completed")
+  const milestones = await getMilestoneStats()
 
   if (!milestones || milestones.length === 0) {
     return (

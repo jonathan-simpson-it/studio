@@ -18,6 +18,8 @@ export type ReminderMethod = 'email' | 'push' | 'browser';
 export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
 export type MilestoneStatus = 'Open' | 'In Progress' | 'Completed';
 export type ApiKeyScope = 'read' | 'write' | 'full';
+export type MessageImportance = 'high' | 'medium' | 'low';
+export type AvatarProvider = 'github' | 'google';
 
 export type AIModelKey = 'default' | 'longform' | 'structured' | 'multilingual' | 'fast';
 
@@ -48,6 +50,11 @@ export interface User {
   email: string;
   full_name: string;
   avatar_url: string | null;
+  avatar_provider: AvatarProvider | null;
+  github_id: string | null;
+  github_username: string | null;
+  google_id: string | null;
+  google_email: string | null;
   role: UserRole;
   timezone: string;
   default_hourly_rate: number;

@@ -1,39 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServer } from '@/lib/supabase/server';
+import { connect } from '@/lib/db/connect';
+import { Event } from '@/lib/db/models/calendar';
+import { ActivityLog } from '@/lib/db/models/crm';
 import { auth } from '@/auth';
 import { detectConflicts } from '@/lib/calendar-engine/conflicts';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
+
+  await connect();
 
   const url = new URL(request.url);
   const calendarId = url.searchParams.get('calendar_id');
   const start = url.searchParams.get('start');
   const end = url.searchParams.get('end');
 
-  let query = supabase.from('events').select('*').order('start_time');
+  const filter: Record<string, unknown> = {};
+  if (calendarId) filter.calendar_id = calendarId;
+  if (start) filter.start_time = { $gte: new Date(start) };
+  if (end) filter.end_time = { $lte: new Date(end) };
 
-  if (calendarId) {
-    query = query.eq('calendar_id', calendarId);
-  }
-  if (start) {
-    query = query.gte('start_time', start);
-  }
-  if (end) {
-    query = query.lte('end_time', end);
-  }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const data = await Event.find(filter).sort({ start_time: 1 }).lean({ virtuals: true });
   return NextResponse.json(data);
 }
 
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createServer();
+
+  await connect();
 
   const body = await request.json();
   const {
@@ -54,14 +50,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (check_conflicts) {
-    const { data: existing } = await supabase
-      .from('events')
-      .select('*')
-      .eq('calendar_id', calendar_id)
-      .neq('id', body.id || '');
+    const existing = await Event.find({
+      calendar_id,
+      _id: { $ne: body.id || '' },
+    }).lean({ virtuals: true });
 
     if (existing) {
-      const conflicts = detectConflicts(existing, {
+      const conflicts = detectConflicts(existing as any[], {
         id: '',
         title,
         start_time,
@@ -69,7 +64,7 @@ export async function POST(request: NextRequest) {
         is_all_day: is_all_day || false,
         rrule: rrule || null,
         calendar_id,
-      });
+      } as any);
 
       if (conflicts.length > 0) {
         return NextResponse.json({ conflicts }, { status: 409 });
@@ -77,32 +72,28 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data, error } = await supabase
-    .from('events')
-    .insert({
-      calendar_id,
-      title,
-      description: description || null,
-      location: location || null,
-      start_time,
-      end_time,
-      is_all_day: is_all_day || false,
-      color: color || null,
-      rrule: rrule || null,
-      created_by: session.user.id,
-    })
-    .select()
-    .single();
+  const event = await Event.create({
+    calendar_id,
+    title,
+    description: description || null,
+    location: location || null,
+    start_time,
+    end_time,
+    is_all_day: is_all_day || false,
+    color: color || null,
+    rrule: rrule || null,
+    created_by: session.user.id,
+  });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const result = event.toObject({ virtuals: true });
 
-  await supabase.from('activity_log').insert({
+  await ActivityLog.create({
     entity_type: 'event',
-    entity_id: data.id,
+    entity_id: result._id.toString(),
     action: 'created',
     actor_id: session.user.id,
     meta: { title },
   });
 
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(result, { status: 201 });
 }

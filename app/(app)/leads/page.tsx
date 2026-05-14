@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { listLeads, createLead, updateLeadStage, getLeadsWithHeatScores } from '@/lib/db/actions/leads';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +42,6 @@ const stages = ['New', 'Contacted', 'Discovery', 'Proposal Sent', 'Negotiation',
 
 export default function LeadsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [proposalsMap, setProposalsMap] = useState<Record<string, Proposal | null>>({});
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
@@ -54,18 +53,13 @@ export default function LeadsPage() {
   }, []);
 
   async function loadLeads() {
-    const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+    const data = await getLeadsWithHeatScores();
     if (data) {
       setLeads(data);
       const pmap: Record<string, Proposal | null> = {};
       for (const lead of data) {
         if (lead.stage === 'Proposal Sent') {
-          const { data: props } = await supabase
-            .from('proposals')
-            .select('*')
-            .order('sent_at', { ascending: false })
-            .limit(1);
-          pmap[lead.id] = props?.[0] || null;
+          pmap[lead.id] = null;
         }
       }
       setProposalsMap(pmap);
@@ -73,13 +67,10 @@ export default function LeadsPage() {
   }
 
   async function handleStageChange(leadId: string, newStage: string) {
-    const { error } = await supabase
-      .from('leads')
-      .update({ stage: newStage, stage_changed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', leadId);
-
-    if (error) {
-      toast.error(error.message);
+    try {
+      await updateLeadStage(leadId, newStage);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update stage');
       return;
     }
 
@@ -146,14 +137,14 @@ export default function LeadsPage() {
             </SheetHeader>
             <LeadForm
               onSubmit={async (data) => {
-                const { error } = await supabase.from('leads').insert(data);
-                if (error) {
-                  toast.error(error.message);
-                  return;
+                try {
+                  await createLead(data as Record<string, unknown>);
+                  toast.success('Lead created');
+                  setShowNewSheet(false);
+                  loadLeads();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to create lead');
                 }
-                toast.success('Lead created');
-                setShowNewSheet(false);
-                loadLeads();
               }}
             />
           </SheetContent>

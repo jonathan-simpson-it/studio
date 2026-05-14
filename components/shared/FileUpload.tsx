@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, X, FileIcon, Loader2 } from 'lucide-react';
@@ -26,8 +24,6 @@ export function FileUpload({
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState<Array<{ name: string; path: string; url: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
-  const { data: session } = useSession();
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -35,66 +31,44 @@ export function FileUpload({
 
     setUploading(true);
 
-    if (!session?.user?.id) {
-      toast.error('Not authenticated');
+    const formData = new FormData();
+    formData.append('file', file);
+    if (clientId) formData.append('clientId', clientId);
+    if (projectId) formData.append('projectId', projectId);
+    formData.append('visibility', visibility);
+
+    try {
+      const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+
+      const data = await res.json();
+
+      toast.success('File uploaded');
+      setFiles((prev) => [...prev, { name: data.name, path: data.storagePath, url: data.url }]);
+      onUploadComplete?.({ name: data.name, storagePath: data.storagePath, url: data.url });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const entityType = clientId ? 'clients' : 'projects';
-    const entityId = clientId || projectId;
-    const timestamp = Date.now();
-    const storagePath = `${entityType}/${entityId}/${timestamp}_${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('studio-files')
-      .upload(storagePath, file);
-
-    if (uploadError) {
-      toast.error(uploadError.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: signedUrlData } = await supabase.storage
-      .from('studio-files')
-      .createSignedUrl(storagePath, 3600);
-
-    const { error: dbError } = await supabase.from('files').insert({
-      name: file.name,
-      storage_path: storagePath,
-      mime_type: file.type,
-      size_bytes: file.size,
-      visibility,
-      client_id: clientId || null,
-      project_id: projectId || null,
-      uploaded_by: session.user.id,
-    });
-
-    if (dbError) {
-      toast.error(dbError.message);
-      setUploading(false);
-      return;
-    }
-
-    const signedUrl = signedUrlData?.signedUrl || '';
-
-    toast.success('File uploaded');
-      setFiles((prev) => [...prev, { name: file.name, path: storagePath, url: signedUrl || '' }]);
-      onUploadComplete?.({ name: file.name, storagePath, url: signedUrl || '' });
-      setUploading(false);
   }
 
   async function handleDelete(path: string) {
-    const { error } = await supabase.storage.from('studio-files').remove([path]);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    try {
+      const res = await fetch(`/api/files/delete?id=${path}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Delete failed');
+      }
 
-    await supabase.from('files').delete().eq('storage_path', path);
-    setFiles((prev) => prev.filter((f) => f.path !== path));
-    toast.success('File deleted');
+      setFiles((prev) => prev.filter((f) => f.path !== path));
+      toast.success('File deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    }
   }
 
   return (

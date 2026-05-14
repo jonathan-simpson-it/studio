@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { getProject, createTask, createMilestone } from '@/lib/db/actions/projects';
+import { createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,7 +52,6 @@ import { toast } from 'sonner';
 import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRecord, Proposal, Invoice, ActivityLog, ProjectRepo } from '@/types';
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createClient();
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [client, setClient] = useState<Client | null>(null);
@@ -73,47 +73,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   async function load() {
     const { id } = await params;
 
-    const { data: proj } = await supabase.from('projects').select('*').eq('id', id).single();
+    const proj = await getProject(id);
     if (!proj) return;
     setProject(proj);
-
-    const { data: cl } = await supabase.from('clients').select('*').eq('id', proj.client_id).single();
-    if (cl) setClient(cl);
-
-    const [
-      { data: tsks },
-      { data: iss },
-      { data: mls },
-      { data: nts },
-      { data: fls },
-      { data: prps },
-      { data: invs },
-      { data: acts },
-      { data: rps },
-    ] = await Promise.all([
-      supabase.from('tasks').select('*').eq('project_id', id).order('created_at', { ascending: false }),
-      supabase.from('synced_github_issues').select('*').eq('project_id', id).order('updated_at_github', { ascending: false }),
-      supabase.from('milestones').select('*').eq('project_id', id).order('due_date', { ascending: true }),
-      supabase.from('notes').select('*').eq('project_id', id).order('created_at', { ascending: false }),
-      supabase.from('files').select('*').eq('project_id', id).order('created_at', { ascending: false }),
-      supabase.from('proposals').select('*').eq('project_id', id).order('created_at', { ascending: false }),
-      supabase.from('invoices').select('*').eq('project_id', id).order('created_at', { ascending: false }),
-      supabase.from('activity_log').select('*, actor:users(full_name)').eq('entity_id', id).order('created_at', { ascending: false }).limit(50),
-      supabase.from('project_repos').select('*').eq('project_id', id),
-    ]);
-
-    if (tsks) setTasks(tsks);
-    if (iss) setIssues(iss);
-    if (mls) setMilestones(mls);
-    if (nts) setNotes(nts);
-    if (fls) setFiles(fls);
-    if (prps) setProposals(prps);
-    if (invs) setInvoices(invs);
-    if (acts) setActivities(acts);
-    if (rps) setRepos(rps);
+    if (proj.milestones) setMilestones(proj.milestones);
+    if (proj.tasks) setTasks(proj.tasks);
+    if (proj.notes) setNotes(proj.notes);
+    if (proj.files) setFiles(proj.files);
+    if (proj.repos) setRepos(proj.repos);
+    if (proj.syncedIssues) setIssues(proj.syncedIssues);
+    if (proj.proposals) setProposals(proj.proposals);
+    if (proj.invoices) setInvoices(proj.invoices);
+    setActivities([]);
   }
 
-  if (!project || !client) return null;
+  if (!project) return null;
 
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t) => t.status === 'Done').length;
@@ -135,7 +109,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <Badge variant="secondary" className="text-[10px]">{project.billing_type}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {client?.is_internal ? 'Internal — JSCo' : client?.company_name} · Started {formatDate(project.start_date)}
+            {client?.is_internal ? 'Internal — JSCo' : client?.company_name || 'Unknown'} · Started {formatDate(project.start_date)}
           </p>
         </div>
       </div>
@@ -205,11 +179,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <SheetContent>
                 <SheetHeader><SheetTitle>New Task</SheetTitle></SheetHeader>
                 <TaskForm projectId={project.id} milestones={milestones} onSubmit={async (data) => {
-                  const { error } = await supabase.from('tasks').insert(data);
-                  if (error) { toast.error(error.message); return; }
-                  toast.success('Task created');
-                  setShowNewTask(false);
-                  load();
+                  try {
+                    await createTask(data as Record<string, unknown>);
+                    toast.success('Task created');
+                    setShowNewTask(false);
+                    load();
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to create task');
+                  }
                 }} />
               </SheetContent>
             </Sheet>
@@ -283,11 +260,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <DialogContent>
               <DialogHeader><DialogTitle>New Milestone</DialogTitle><DialogDescription>Create a new milestone for this project.</DialogDescription></DialogHeader>
               <MilestoneForm onSubmit={async (data) => {
-                const { error } = await supabase.from('milestones').insert({ ...data, project_id: project.id });
-                if (error) { toast.error(error.message); return; }
-                toast.success('Milestone created');
-                setShowNewMilestone(false);
-                load();
+                try {
+                  await createMilestone({ ...data, project_id: project.id } as Record<string, unknown>);
+                  toast.success('Milestone created');
+                  setShowNewMilestone(false);
+                  load();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to create milestone');
+                }
               }} />
             </DialogContent>
           </Dialog>
@@ -437,19 +417,21 @@ function MilestoneForm({ onSubmit }: { onSubmit: (data: Partial<Milestone>) => P
 }
 
 function NotesTab({ notes, projectId, onRefresh }: { notes: Note[]; projectId: string; onRefresh: () => void }) {
-  const supabase = createClient();
   const { data: session } = useSession();
   const [newNote, setNewNote] = useState('');
 
   async function addNote() {
     if (!newNote.trim()) return;
-    const userId = session?.user?.id
+    const userId = session?.user?.id;
     if (!userId) return;
-    const { error } = await supabase.from('notes').insert({ title: newNote.slice(0, 60), body: newNote, project_id: projectId, author_id: userId });
-    if (error) { toast.error(error.message); return; }
-    setNewNote('');
-    toast.success('Note added');
-    onRefresh();
+    try {
+      await createNote({ title: newNote.slice(0, 60), body: newNote, project_id: projectId, author_id: userId } as Record<string, unknown>);
+      setNewNote('');
+      toast.success('Note added');
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add note');
+    }
   }
 
   return (

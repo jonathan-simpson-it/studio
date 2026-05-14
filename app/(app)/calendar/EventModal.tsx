@@ -24,7 +24,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseNaturalLanguage } from '@/lib/parser/nlp';
 import { detectConflicts, type EventLike } from '@/lib/calendar-engine/conflicts';
 import { parseICS, type ParsedICSEvent } from '@/lib/calendar-engine/ics-parse';
-import { createClient } from '@/lib/supabase/client';
 import type { CalendarEvent, Calendar } from '@/types';
 import { format } from 'date-fns';
 import { AlertCircle, Sparkles, Upload, FileText, Check, X } from 'lucide-react';
@@ -62,7 +61,6 @@ export function EventModal({
   onSave,
   onDelete,
 }: EventModalProps) {
-  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState('nl');
   const [nlInput, setNlInput] = useState('');

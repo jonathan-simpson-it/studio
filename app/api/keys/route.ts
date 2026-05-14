@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServer } from "@/lib/supabase/server"
+import { auth } from "@/auth"
+import { connect } from "@/lib/db/connect"
+import { ApiKey } from "@/lib/db/models/core"
 import crypto from "crypto"
 
 export async function GET() {
-  const supabase = await createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data, error } = await supabase
-    .from("api_keys")
-    .select("id, name, key_prefix, scope, is_active, last_used_at, created_at")
-    .order("created_at", { ascending: false })
+  await connect()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const data = await ApiKey.find()
+    .select("id name key_prefix scope is_active last_used_at created_at")
+    .sort({ created_at: -1 })
+    .lean({ virtuals: true })
+
   return NextResponse.json(data)
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   let body: { name?: string; scope?: string }
   try {
@@ -41,27 +42,24 @@ export async function POST(request: NextRequest) {
   const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex")
   const keyPrefix = rawKey.slice(0, 19) + "..."
 
-  const { data, error } = await supabase
-    .from("api_keys")
-    .insert({
-      name: name.trim(),
-      key_hash: keyHash,
-      key_prefix: keyPrefix,
-      scope: keyScope,
-      created_by: user.id,
-    })
-    .select("id, name, key_prefix, scope, is_active, created_at")
-    .single()
+  await connect()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const data = await ApiKey.create({
+    name: name.trim(),
+    key_hash: keyHash,
+    key_prefix: keyPrefix,
+    scope: keyScope,
+    created_by: session.user.id,
+  })
 
-  return NextResponse.json({ ...data, raw_key: rawKey }, { status: 201 })
+  const result = data.toObject({ virtuals: true })
+
+  return NextResponse.json({ ...result, raw_key: rawKey }, { status: 201 })
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   let body: { id?: string; is_active?: boolean }
   try {
@@ -76,22 +74,21 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "id and is_active required" }, { status: 400 })
   }
 
-  const { error } = await supabase.from("api_keys").update({ is_active }).eq("id", id)
+  await connect()
+  await ApiKey.findByIdAndUpdate(id, { is_active })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const id = request.nextUrl.searchParams.get("id")
   if (!id) return NextResponse.json({ error: "id query param required" }, { status: 400 })
 
-  const { error } = await supabase.from("api_keys").delete().eq("id", id)
+  await connect()
+  await ApiKey.findByIdAndDelete(id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

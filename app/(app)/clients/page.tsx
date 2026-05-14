@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { listClients, createClient } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +33,6 @@ import type { Client } from '@/types';
 
 export default function ClientsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [clients, setClients] = useState<(Client & { active_projects?: number; total_revenue?: number; outstanding?: number })[]>([]);
   const [search, setSearch] = useState('');
   const [showInternal, setShowInternal] = useState(false);
@@ -42,50 +41,19 @@ export default function ClientsPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    let query = supabase.from('clients').select('*');
-    if (!showInternal) query = query.eq('is_internal', false);
-    query = query.order('created_at', { ascending: false });
-
-    const { data } = await query;
-    if (!data) return;
-
-    const enriched = await Promise.all(
-      data.map(async (c) => {
-        const { count: active } = await supabase
-          .from('projects')
-          .select('*', { count: 'exact', head: true })
-          .eq('client_id', c.id)
-          .neq('status', 'Completed');
-
-        const { data: invoices } = await supabase
-          .from('invoices')
-          .select('status, total')
-          .eq('client_id', c.id);
-
-        const paid = invoices?.filter((i) => i.status === 'Paid').reduce((s, i) => s + i.total, 0) || 0;
-        const outstanding = invoices?.filter((i) => ['Sent', 'Overdue'].includes(i.status)).reduce((s, i) => s + i.total, 0) || 0;
-
-        return {
-          ...c,
-          active_projects: active || 0,
-          total_revenue: paid,
-          outstanding,
-        };
-      })
-    );
-
-    setClients(enriched);
+    const data = await listClients(showInternal);
+    if (data) setClients(data);
   }
 
   async function handleCreate(data: Partial<Client>) {
-    const { error } = await supabase.from('clients').insert(data);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      await createClient(data as Record<string, unknown>);
+      toast.success('Client created');
+      setShowNewSheet(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create client');
     }
-    toast.success('Client created');
-    setShowNewSheet(false);
-    load();
   }
 
   const filtered = clients.filter(
