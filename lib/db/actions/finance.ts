@@ -11,7 +11,8 @@ export async function listCosts() {
 
 export async function createCost(data: Record<string, unknown>) {
   await connect();
-  return Cost.create(data);
+  const cost = await Cost.create(data);
+  return cost.toObject({ virtuals: true });
 }
 
 export async function listFinanceData() {

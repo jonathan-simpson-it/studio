@@ -12,28 +12,29 @@ export async function listCalendars() {
 
 export async function getAllEvents() {
   await connect();
-  return Event.find().sort({ start_time: 1 }).lean({ virtuals: true });
+  return toPlain(await Event.find().sort({ start_time: 1 }).lean({ virtuals: true }));
 }
 
 export async function ensureDefaultCalendar(userId: string) {
   await connect();
   let cal = await Calendar.findOne().sort({ created_at: 1 }).lean({ virtuals: true });
   if (!cal) {
-    const created = await Calendar.create({ name: 'Personal', color: '#3b82f6', is_default: true, created_by: userId });
+    const created = await Calendar.create({ name: 'Personal', color: '#3b82f6', is_default: true, type: 'personal', sync_to_google: true, created_by: userId });
     await CalendarMember.create({ calendar_id: created._id.toString(), user_id: userId, role: 'OWNER' });
     cal = created.toObject({ virtuals: true });
   }
-  return cal;
+  return toPlain(cal);
 }
 
 export async function createCalendar(data: Record<string, unknown>) {
   await connect();
-  return Calendar.create(data);
+  const cal = await Calendar.create(data);
+  return cal.toObject({ virtuals: true });
 }
 
 export async function updateCalendar(id: string, data: Record<string, unknown>) {
   await connect();
-  return Calendar.findByIdAndUpdate(id, data, { new: true }).lean({ virtuals: true });
+  return Calendar.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function deleteCalendar(id: string) {
@@ -49,7 +50,8 @@ export async function getCalendarMembers(calendarId: string) {
 
 export async function addCalendarMember(data: Record<string, unknown>) {
   await connect();
-  return CalendarMember.create(data);
+  const member = await CalendarMember.create(data);
+  return member.toObject({ virtuals: true });
 }
 
 export async function getEvents(start: Date, end: Date) {
@@ -77,7 +79,8 @@ export async function createEvent(data: Record<string, unknown>) {
 
 export async function updateEvent(id: string, data: Record<string, unknown>) {
   await connect();
-  return Event.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  const existing = await Event.findById(id).select('version').lean({ virtuals: true }) as { version?: number } | null;
+  return Event.findByIdAndUpdate(id, { ...data, version: (existing?.version || 0) + 1, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function deleteEvent(id: string) {
@@ -102,6 +105,53 @@ export async function checkEventConflicts(
 }
 
 // Reminders
+export async function processPendingReminders() {
+  await connect();
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+  const reminders = await Reminder.find({ is_sent: false, trigger_at: { $gte: yesterdayStart, $lt: todayStart } })
+    .limit(50).sort({ trigger_at: 1 }).lean({ virtuals: true });
+
+  if (!reminders?.length) return { sent: 0 };
+
+  const eventIds = [...new Set(reminders.map((r: any) => r.event_id))];
+  const events = await Event.find({ _id: { $in: eventIds } })
+    .select('title start_time created_by').lean({ virtuals: true });
+  const eventMap = new Map(events.map((e: any) => [e._id.toString(), e]));
+
+  const resend = new (await import('resend')).Resend(process.env.RESEND_API_KEY);
+  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  let sent = 0;
+
+  for (const reminder of reminders) {
+    const r = reminder as any;
+    const event = eventMap.get(r.event_id?.toString()) as any;
+
+    if (r.method === 'email' && event?.created_by) {
+      const { User } = await import('@/lib/db/models/core');
+      const userData = await User.findById(event.created_by).select('email').lean({ virtuals: true });
+      if ((userData as any)?.email) {
+        try {
+          await resend.emails.send({
+            from: `Studio <${from}>`,
+            to: (userData as any).email,
+            subject: `Reminder: ${event.title}`,
+            text: `Your event "${event.title}" is coming up at ${new Date(event.start_time).toLocaleString()}.`,
+          });
+        } catch (err) {
+          console.error('Failed to send reminder email:', err);
+        }
+      }
+    }
+
+    await Reminder.findByIdAndUpdate(r._id, { is_sent: true });
+    sent++;
+  }
+
+  return { sent };
+}
+
 export async function getPendingReminders() {
   await connect();
   const reminders = await Reminder.find({ is_sent: false, trigger_at: { $lte: new Date() } })
@@ -131,7 +181,8 @@ export async function getDailyExpenses(date: string) {
 
 export async function createDailyExpense(data: Record<string, unknown>) {
   await connect();
-  return DailyExpense.create(data);
+  const expense = await DailyExpense.create(data);
+  return expense.toObject({ virtuals: true });
 }
 
 export async function deleteDailyExpense(id: string) {
@@ -141,5 +192,5 @@ export async function deleteDailyExpense(id: string) {
 
 export async function updateDailyExpense(id: string, data: Record<string, unknown>) {
   await connect();
-  return DailyExpense.findByIdAndUpdate(id, data, { new: true }).lean({ virtuals: true });
+  return DailyExpense.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
 }

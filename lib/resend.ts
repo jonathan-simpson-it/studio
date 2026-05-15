@@ -57,6 +57,29 @@ export async function sendProposalEmail(
   return data;
 }
 
+export async function sendGeneralEmail(
+  to: string,
+  subject: string,
+  body: string,
+  attachments?: Array<{ filename: string; content: string }>
+) {
+  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+
+  const { data, error } = await getClient().emails.send({
+    from: `Jonathon Simpson & Co. <${from}>`,
+    to,
+    subject,
+    text: body,
+    attachments: attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+    })),
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function sendTestEmail(to: string) {
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
 

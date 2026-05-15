@@ -75,6 +75,10 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
   async function addExpense() {
     if (!amount || parseFloat(amount) <= 0) return;
     const currentUser = await getCurrentUser();
+    if (!currentUser?.id) {
+      toast.error('Authentication required');
+      return;
+    }
 
     try {
       await createDailyExpense({
@@ -82,7 +86,7 @@ export function ExpenseWidget({ date, view }: ExpenseWidgetProps) {
         category,
         note: note || null,
         date: expenseDate,
-        user_id: currentUser?.id,
+        user_id: currentUser.id,
       });
       toast.success('Expense added');
       setAmount('');

@@ -50,10 +50,9 @@ export async function fetchAndStoreGoogleCalendars() {
   const session = await auth();
   if (!session?.user?.id) throw new Error('Unauthorized');
 
+  await connect();
   const accessToken = await getAccessToken(session.user.id);
   const calendars = await listGoogleCalendars(accessToken);
-
-  await connect();
   for (const cal of calendars) {
     await GoogleCalendarSync.findOneAndUpdate(
       { user_id: session.user.id, google_calendar_id: cal.id },
@@ -70,11 +69,10 @@ export async function fetchAndStoreGoogleCalendars() {
 }
 
 export async function syncAllGoogleCalendarsForUser(userId: string) {
-  const accessToken = await getAccessToken(userId);
-  const refreshToken = (await User.findById(userId).select('google_refresh_token').lean()) as any;
-  if (!refreshToken?.google_refresh_token) return { synced: 0 };
-
   await connect();
+  const accessToken = await getAccessToken(userId);
+  const refreshToken = await User.findById(userId).select('google_refresh_token').lean() as any;
+  if (!refreshToken?.google_refresh_token) return { synced: 0 };
   const activeCals = await GoogleCalendarSync.find({ user_id: userId, is_active: true }).lean();
 
   let synced = 0;
@@ -149,10 +147,9 @@ export async function fetchAndStoreGoogleLabels() {
   const session = await auth();
   if (!session?.user?.id) throw new Error('Unauthorized');
 
+  await connect();
   const accessToken = await getAccessToken(session.user.id);
   const labels = await listLabels(accessToken);
-
-  await connect();
   for (const label of labels) {
     await GoogleInbox.findOneAndUpdate(
       { user_id: session.user.id, label_id: label.id },
@@ -168,6 +165,7 @@ export async function fetchAndStoreGoogleLabels() {
 }
 
 export async function syncGmailForUser(userId: string, labelId: string) {
+  await connect();
   const accessToken = await getAccessToken(userId);
 
   const messageRefs = await listMessages(accessToken, labelId, 50);

@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckSquare, Flag, FileText, GitBranch } from 'lucide-react';
+import { CheckSquare, Flag, FileText, GitBranch, Plus } from 'lucide-react';
 import type { CalendarEvent, Calendar } from '@/types';
 
 function sourceIcon(sourceType?: string) {
@@ -35,6 +35,7 @@ interface MonthViewProps {
   onToggleCalendar: (id: string) => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateEvent: (date: Date) => void;
+  onCreateCalendar?: () => void;
 }
 
 export function MonthView({
@@ -45,6 +46,7 @@ export function MonthView({
   onToggleCalendar,
   onSelectEvent,
   onCreateEvent,
+  onCreateCalendar,
 }: MonthViewProps) {
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
@@ -80,6 +82,9 @@ export function MonthView({
             {cal.name}
           </Badge>
         ))}
+        <Button key="add-calendar" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onCreateCalendar?.()}>
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
 
       <div className="grid grid-cols-7 rounded-lg border">
@@ -131,11 +136,11 @@ export function MonthView({
               </div>
 
               <div className="mt-1 space-y-0.5">
-                {dayEvents.slice(0, 3).map((ev) => {
+                {dayEvents.slice(0, 3).map((ev, i) => {
                   const cal = calendars.find((c) => c.id === ev.calendar_id);
                   return (
                     <button
-                      key={ev.id}
+                      key={ev.id || `ev-${day.toISOString()}-${i}`}
                       className="w-full truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium text-white"
                       style={{ backgroundColor: ev.color || cal?.color || '#3b82f6' }}
                       onClick={(e) => {
@@ -150,7 +155,7 @@ export function MonthView({
                   );
                 })}
                 {dayEvents.length > 3 && (
-                  <p className="px-1.5 text-[10px] text-muted-foreground">
+                  <p key="more" className="px-1.5 text-[10px] text-muted-foreground">
                     +{dayEvents.length - 3} more
                   </p>
                 )}

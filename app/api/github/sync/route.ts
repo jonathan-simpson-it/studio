@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
               assignee_github_login: issue.assignee?.login || null,
               labels: issue.labels.map((l: any) => ({ name: l.name, color: l.color })),
               milestone_title: issue.milestone?.title || null,
+              milestone_due_on: issue.milestone?.due_on || null,
               github_url: issue.html_url,
               created_at_github: issue.created_at,
               updated_at_github: issue.updated_at,

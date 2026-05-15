@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { auth } from "@/auth"
+import { CronTasks } from "./CronTasks"
 import { DashboardStatCards } from "./DashboardStatCards"
 import { DashboardMilestonesSection } from "./DashboardMilestonesSection"
 import { DashboardActivitySection } from "./DashboardActivitySection"
@@ -56,6 +57,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <CronTasks />
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">
           Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {name}

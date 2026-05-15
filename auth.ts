@@ -44,8 +44,8 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
             'openid',
             'profile',
             'email',
-            'https://www.googleapis.com/auth/calendar.readonly',
-            'https://www.googleapis.com/auth/calendar.events.readonly',
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events',
             'https://www.googleapis.com/auth/gmail.readonly',
           ].join(' '),
           access_type: 'offline',
@@ -61,6 +61,10 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user
       const { origin, pathname } = nextUrl
+
+      if (pathname.startsWith('/api/') && !isLoggedIn) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
       if (!isLoggedIn && pathname !== "/login" && pathname !== "/register") {
         const redirectUrl = new URL("/login", origin)

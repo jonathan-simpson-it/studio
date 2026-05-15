@@ -5,7 +5,9 @@ declare global {
 }
 
 export async function connect() {
-  if (global._mongooseConnection) return global._mongooseConnection;
+  if (global._mongooseConnection && mongoose.connection.readyState === 1) {
+    return global._mongooseConnection;
+  }
 
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI is not defined');

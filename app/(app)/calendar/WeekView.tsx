@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Plus } from 'lucide-react';
 import type { CalendarEvent, Calendar } from '@/types';
 
 interface WeekViewProps {
@@ -22,6 +23,7 @@ interface WeekViewProps {
   onToggleCalendar: (id: string) => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onCreateEvent: (date: Date) => void;
+  onCreateCalendar?: () => void;
 }
 
 const HOUR_HEIGHT = 48;
@@ -35,6 +37,7 @@ export function WeekView({
   onToggleCalendar,
   onSelectEvent,
   onCreateEvent,
+  onCreateCalendar,
 }: WeekViewProps) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
@@ -89,6 +92,9 @@ export function WeekView({
             {cal.name}
           </Badge>
         ))}
+        <Button key="new-cal" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onCreateCalendar?.()}>
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
 
       <div className="rounded-lg border">

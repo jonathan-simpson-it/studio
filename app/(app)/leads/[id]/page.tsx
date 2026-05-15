@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { getLeadDetail, createActivityLog } from '@/lib/db/actions/details';
-import { updateLeadStage } from '@/lib/db/actions/leads';
+import { updateLead, updateLeadStage, deleteLead } from '@/lib/db/actions/leads';
 import { createClient as createDbClient, getClient } from '@/lib/db/actions/clients';
 import { createProject } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
@@ -27,12 +27,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { HeatScore } from '@/components/shared/HeatScore';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { calculateHeatScore } from '@/lib/heat-score';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import type { Lead, Proposal, ActivityLog } from '@/types';
@@ -44,6 +45,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [showConvert, setShowConvert] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [convertProjectName, setConvertProjectName] = useState('');
   const [convertBillingType, setConvertBillingType] = useState('One-off');
 
@@ -79,8 +81,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       }
     } else {
       try {
-        const { listLeads } = await import('@/lib/db/actions/leads');
-        toast.success('Lead updated');
+        await updateLead(lead.id, { [field]: value });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to update');
         return;
@@ -145,6 +146,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  async function handleDelete() {
+    if (!lead) return;
+    try {
+      await deleteLead(lead.id);
+      toast.success('Lead deleted');
+      router.push('/leads');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  }
+
   if (!lead) return null;
 
   const heatScore = calculateHeatScore(lead, proposal);
@@ -164,20 +176,25 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <p className="text-sm text-muted-foreground mt-1">{lead.contact_name}</p>
         </div>
 
-        {lead.stage === 'Won' && !lead.converted_at && (
-          <Button onClick={() => setShowConvert(true)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Convert to Client
+        <div className="flex items-center gap-2">
+          {lead.stage === 'Won' && !lead.converted_at && (
+            <Button onClick={() => setShowConvert(true)}>
+              <ExternalLink className="mr-2 h-4 w-4" /> Convert to Client
+            </Button>
+          )}
+          <AIGenerateButton
+            action="draft-email"
+            context={{ contact_name: lead.contact_name, company_name: lead.company_name }}
+            onResult={(content) => {
+              navigator.clipboard.writeText(content);
+              toast.success('Email draft copied to clipboard');
+            }}
+            label="Draft email"
+          />
+          <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete
           </Button>
-        )}
-        <AIGenerateButton
-          action="draft-email"
-          context={{ contact_name: lead.contact_name, company_name: lead.company_name }}
-          onResult={(content) => {
-            navigator.clipboard.writeText(content);
-            toast.success('Email draft copied to clipboard');
-          }}
-          label="Draft email"
-        />
+        </div>
       </div>
 
       <Card>
@@ -329,6 +346,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        entityName={lead.company_name}
+        entityType="Lead"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

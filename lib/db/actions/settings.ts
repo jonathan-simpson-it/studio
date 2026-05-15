@@ -43,7 +43,7 @@ export async function connectGitHubAccount(userId: string, githubId: string, git
     github_id: githubId,
     github_username: githubUsername,
     avatar_url: avatarUrl,
-  }, { new: true }).lean({ virtuals: true });
+  }, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function getUser(id: string) {
@@ -82,7 +82,7 @@ export async function updateUserProfile(id: string, data: {
   default_hourly_rate?: number;
 }) {
   await connect();
-  return User.findByIdAndUpdate(id, data, { new: true }).lean({ virtuals: true });
+  return User.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function getCurrentUser() {
@@ -91,6 +91,19 @@ export async function getCurrentUser() {
   await connect();
   const user = await User.findById(session.user.id).lean({ virtuals: true });
   return user ? toPlain(user) : null;
+}
+
+export async function listFounders() {
+  await connect();
+  const users = await User.find({ role: 'founder' })
+    .select('full_name email google_email')
+    .sort({ full_name: 1 })
+    .lean({ virtuals: true });
+  return users.map((u: any) => ({
+    id: u._id.toString(),
+    name: u.full_name,
+    email: u.email,
+  }));
 }
 
 export async function getAgencySettings() {
@@ -112,7 +125,7 @@ export async function getAgencySettings() {
 
 export async function updateAgencySettings(id: string, data: Record<string, unknown>) {
   await connect();
-  return AgencySettings.findByIdAndUpdate(id, data, { new: true }).lean({ virtuals: true });
+  return AgencySettings.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function getIntegrations() {
@@ -125,7 +138,7 @@ export async function upsertIntegration(service: string, encryptedKey: string, e
   return Integration.findOneAndUpdate(
     { service },
     { encrypted_key: encryptedKey, extra_config: extraConfig },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   ).lean({ virtuals: true });
 }
 
@@ -142,12 +155,13 @@ export async function createApiKey(data: {
   created_by: string;
 }) {
   await connect();
-  return ApiKey.create(data);
+  const key = await ApiKey.create(data);
+  return key.toObject({ virtuals: true });
 }
 
 export async function updateApiKey(id: string, data: Partial<IApiKey>) {
   await connect();
-  return ApiKey.findByIdAndUpdate(id, data, { new: true }).lean({ virtuals: true });
+  return ApiKey.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
 }
 
 export async function deleteApiKey(id: string) {

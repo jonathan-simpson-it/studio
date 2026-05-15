@@ -16,11 +16,20 @@ export async function GET() {
   const calendarsWithMembers = await Promise.all(
     (data as any[]).map(async (cal) => {
       const members = await CalendarMember.find({ calendar_id: cal._id.toString() }).lean({ virtuals: true });
-      return { ...cal, members };
+      const isMember = members.some((m: any) => m.user_id === session!.user!.id);
+      const isOwner = members.some((m: any) => m.user_id === session!.user!.id && m.role === 'OWNER');
+      return { ...cal, members, isMember, isOwner };
     })
   );
 
-  return NextResponse.json(calendarsWithMembers);
+  const filtered = calendarsWithMembers.filter((cal) => {
+    if (cal.type === 'personal') {
+      return (cal as any).created_by === session?.user?.id;
+    }
+    return (cal as any).isMember;
+  });
+
+  return NextResponse.json(filtered);
 }
 
 export async function POST(request: NextRequest) {
@@ -30,10 +39,16 @@ export async function POST(request: NextRequest) {
   await connect();
 
   const body = await request.json();
-  const { name, color } = body;
+  const { name, color, type, member_ids, google_calendar_id } = body;
   if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
 
-  const cal = await Calendar.create({ name, color: color || '#3b82f6', created_by: session.user.id });
+  const cal = await Calendar.create({
+    name,
+    color: color || '#3b82f6',
+    type: type || 'personal',
+    google_calendar_id: google_calendar_id || null,
+    created_by: session.user.id,
+  });
   const result = cal.toObject({ virtuals: true });
 
   await CalendarMember.create({
@@ -41,6 +56,19 @@ export async function POST(request: NextRequest) {
     user_id: session.user.id,
     role: 'OWNER',
   });
+
+  if (type === 'shared' && Array.isArray(member_ids)) {
+    const memberDocs = member_ids
+      .filter((id: string) => id !== session.user!.id)
+      .map((id: string) => ({
+        calendar_id: result._id.toString(),
+        user_id: id,
+        role: 'EDITOR',
+      }));
+    if (memberDocs.length > 0) {
+      await CalendarMember.insertMany(memberDocs);
+    }
+  }
 
   return NextResponse.json(result, { status: 201 });
 }

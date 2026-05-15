@@ -3,8 +3,9 @@ import { getProjectStats } from "@/lib/db/actions/projects"
 import { getUserTasks } from "@/lib/db/actions/projects"
 import { getLeadStats } from "@/lib/db/actions/leads"
 import { getOutstandingInvoices } from "@/lib/db/actions/invoices"
+import { getInboxStats } from "@/lib/db/actions/email"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckSquare, Users, Receipt, FolderKanban } from "lucide-react"
+import { CheckSquare, Users, Receipt, FolderKanban, Inbox } from "lucide-react"
 import Link from "next/link"
 
 function StatCard({
@@ -39,17 +40,18 @@ function StatCard({
 export async function DashboardStatCards() {
   const session = await auth()
 
-  const [projectStats, userTasks, staleLeads, outstandingInvoices] = await Promise.all([
+  const [projectStats, userTasks, staleLeads, outstandingInvoices, inboxStats] = await Promise.all([
     getProjectStats(),
     getUserTasks(session?.user?.id || ''),
     getLeadStats(),
     getOutstandingInvoices(),
+    getInboxStats(),
   ])
 
   const overdueTasks = userTasks.filter((t: any) => t.due_date && new Date(t.due_date) < new Date())
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       <StatCard
         title="Active Projects"
         value={projectStats.activeCount}
@@ -77,6 +79,13 @@ export async function DashboardStatCards() {
         subtitle={outstandingInvoices.invoices.length + ' unpaid'}
         icon={Receipt}
         href="/invoices"
+      />
+      <StatCard
+        title="Inbox"
+        value={inboxStats.unread}
+        subtitle={inboxStats.highPriority + ' high priority \u00B7 ' + inboxStats.actionNeeded + ' need action'}
+        icon={Inbox}
+        href="/inbox"
       />
     </div>
   )

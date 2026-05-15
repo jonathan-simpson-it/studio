@@ -38,7 +38,19 @@ export async function createProject(data: Record<string, unknown>) {
 
 export async function updateProject(id: string, data: Record<string, unknown>) {
   await connect();
-  return Project.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  return Project.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteProject(id: string) {
+  await connect();
+  await Promise.all([
+    Milestone.deleteMany({ project_id: id }),
+    Task.deleteMany({ project_id: id }),
+    Note.deleteMany({ project_id: id }),
+    ProjectRepo.deleteMany({ project_id: id }),
+    SyncedGithubIssue.deleteMany({ project_id: id }),
+  ]);
+  return Project.findByIdAndDelete(id);
 }
 
 export async function getProjectStats() {
@@ -96,6 +108,16 @@ export async function createMilestone(data: Record<string, unknown>) {
   return milestone.toObject({ virtuals: true });
 }
 
+export async function updateMilestone(id: string, data: Record<string, unknown>) {
+  await connect();
+  return Milestone.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteMilestone(id: string) {
+  await connect();
+  return Milestone.findByIdAndDelete(id);
+}
+
 export async function getUpcomingMilestones() {
   await connect();
   const now = new Date();
@@ -113,13 +135,13 @@ export async function getMilestoneStats() {
 // Tasks
 export async function listTasks() {
   await connect();
-  return Task.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Task.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function createTask(data: Record<string, unknown>) {
   await connect();
   const task = await Task.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return task.toObject({ virtuals: true });
+  return toPlain(task.toObject({ virtuals: true }));
 }
 
 export async function getUserTasks(userId: string) {
@@ -144,20 +166,74 @@ export async function getTasksForProject(projectId: string) {
 
 export async function updateTask(id: string, data: Record<string, unknown>) {
   await connect();
-  return Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  return Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteTask(id: string) {
+  await connect();
+  return Task.findByIdAndDelete(id);
 }
 
 export async function getAllTasksWithDueDates() {
   await connect();
-  return Task.find({ due_date: { $ne: null } }).select('id title due_date project_id assignee_id').lean({ virtuals: true });
+  return toPlain(await Task.find({ due_date: { $ne: null } }).select('id title due_date project_id assignee_id').lean({ virtuals: true }));
 }
 
 export async function getAllMilestonesWithDueDates() {
   await connect();
-  return Milestone.find({ due_date: { $ne: null } }).select('id title due_date project_id').lean({ virtuals: true });
+  return toPlain(await Milestone.find({ due_date: { $ne: null } }).select('id title due_date project_id').lean({ virtuals: true }));
+}
+
+export async function syncAllGithubIssues() {
+  await connect();
+  const repos = await ProjectRepo.find().lean({ virtuals: true });
+
+  if (!repos || repos.length === 0) return { synced: 0, failed: 0 };
+
+  let totalSynced = 0;
+  let totalFailed = 0;
+
+  for (const repo of repos) {
+    try {
+      const { listIssues } = await import('@/lib/github');
+      const issues = await listIssues((repo as any).full_name);
+      for (const issue of issues) {
+        try {
+          await SyncedGithubIssue.findOneAndUpdate(
+            { github_issue_id: issue.number },
+            {
+              github_issue_id: issue.number,
+              repo_id: (repo as any)._id.toString(),
+              project_id: (repo as any).project_id,
+              title: issue.title,
+              body: issue.body || '',
+              state: issue.state,
+              assignee_github_login: issue.assignee?.login || null,
+              labels: issue.labels.map((l: any) => ({ name: l.name, color: l.color })),
+              milestone_title: issue.milestone?.title || null,
+              milestone_due_on: issue.milestone?.due_on || null,
+              github_url: issue.html_url,
+              created_at_github: issue.created_at,
+              updated_at_github: issue.updated_at,
+              synced_at: new Date().toISOString(),
+            },
+            { upsert: true }
+          );
+          totalSynced++;
+        } catch (err) {
+          console.error(`Failed to sync issue #${issue.number} from ${(repo as any).full_name}:`, (err as Error).message);
+          totalFailed++;
+        }
+      }
+    } catch (repoError) {
+      console.error(`Sync failed for ${(repo as any).full_name}:`, repoError);
+    }
+  }
+
+  return { synced: totalSynced, failed: totalFailed };
 }
 
 export async function getAllSyncedIssuesWithDueDates() {
   await connect();
-  return SyncedGithubIssue.find({ milestone_due_on: { $ne: null } }).select('id title github_url project_id milestone_due_on').lean({ virtuals: true });
+  return toPlain(await SyncedGithubIssue.find({ milestone_due_on: { $ne: null } }).select('id title github_url project_id milestone_due_on').lean({ virtuals: true }));
 }

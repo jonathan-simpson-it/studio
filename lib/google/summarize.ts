@@ -1,3 +1,6 @@
+import { generateWithFallback } from '@/lib/ai';
+import type { AIActionType } from '@/types';
+
 export interface EmailSummaryResult {
   importance: 'high' | 'medium' | 'low';
   summary: string;
@@ -11,45 +14,21 @@ export async function summarizeEmail(from: string, subject: string, body: string
     return { importance: 'medium', summary: '', action_needed: false, action_description: null };
   }
 
-  const systemPrompt = `You are an email prioritizer. Given an email, return ONLY valid JSON (no markdown, no code fences) with:
-{
-  "importance": "high" | "medium" | "low",
-  "summary": "one-sentence summary of the email",
-  "action_needed": true/false,
-  "action_description": "brief description of what action is needed, or null"
-}`;
-
-  const userContent = `From: ${from}\nSubject: ${subject}\n\n${body.slice(0, 3000)}`;
-
   try {
-    const res = await fetch(
-      `${process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'}/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: process.env.AI_SUMMARIZE_MODEL || 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent },
-          ],
-          temperature: 0.2,
-          max_tokens: 512,
-        }),
-      }
-    );
+    const result = await generateWithFallback('parse-email' as AIActionType, {
+      task: 'summarize_and_prioritize',
+      from,
+      subject,
+      body: body.slice(0, 3000),
+      output_schema: {
+        importance: '"high", "medium", or "low"',
+        summary: 'one-sentence summary of the email',
+        action_needed: 'true or false',
+        action_description: 'brief description of what action is needed, or null',
+      },
+    });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('AI summarization error:', errText);
-      return { importance: 'medium', summary: '', action_needed: false, action_description: null };
-    }
-
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content || '';
+    const raw = result.content;
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

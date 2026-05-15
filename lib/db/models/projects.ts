@@ -132,6 +132,7 @@ export interface ISyncedGithubIssue extends Document {
   assignee_github_login: string | null;
   labels: Array<{ name: string; color: string }>;
   milestone_title: string | null;
+  milestone_due_on: Date | null;
   github_url: string | null;
   synced_at: Date;
   created_at_github: Date | null;
@@ -148,6 +149,7 @@ const syncedGithubIssueSchema = new Schema<ISyncedGithubIssue>({
   assignee_github_login: { type: String, default: null },
   labels: [{ name: String, color: String }],
   milestone_title: { type: String, default: null },
+  milestone_due_on: { type: Date, default: null },
   github_url: { type: String, default: null },
   synced_at: { type: Date, default: Date.now },
   created_at_github: { type: Date, default: null },

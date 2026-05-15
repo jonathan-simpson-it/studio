@@ -20,10 +20,12 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
+import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils';
 import {
@@ -94,7 +96,7 @@ export default function TasksPage() {
             <Button><Plus className="mr-2 h-4 w-4" /> New Task</Button>
           </SheetTrigger>
           <SheetContent>
-            <SheetHeader><SheetTitle>New Task</SheetTitle></SheetHeader>
+            <SheetHeader><SheetTitle>New Task</SheetTitle><SheetDescription className="sr-only">Fill in the details for a new task</SheetDescription></SheetHeader>
             <TaskForm onSubmit={async (data) => {
               const userId = session?.user?.id;
               try {
@@ -169,8 +171,25 @@ export default function TasksPage() {
 
 function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<void> }) {
   const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo' });
+  const [dueDate, setDueDate] = useState('');
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form as Partial<Task>); }} className="space-y-4 pt-4">
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, due_date: dueDate || null } as Partial<Task>); }} className="space-y-4 pt-4">
+      <div className="flex items-center justify-between">
+        <Label>Smart Fill</Label>
+        <SmartFillButton
+          action="parse-task"
+          onFill={(fields) => {
+            if (fields.title) setForm((f) => ({ ...f, title: fields.title as string }));
+            if (fields.description) setForm((f) => ({ ...f, description: fields.description as string }));
+            if (fields.priority && ['Low', 'Medium', 'High', 'Urgent'].includes(fields.priority as string)) {
+              setForm((f) => ({ ...f, priority: fields.priority as string }));
+            }
+            if (fields.due_date) setDueDate(fields.due_date as string);
+          }}
+          label="Smart Fill"
+          entityLabel="task"
+        />
+      </div>
       <div className="space-y-2">
         <Label>Title</Label>
         <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
@@ -200,6 +219,10 @@ function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<voi
             {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Due Date</Label>
+        <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </div>
       <Button type="submit" className="w-full">Create Task</Button>
     </form>

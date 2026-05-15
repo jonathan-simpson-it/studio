@@ -26,8 +26,18 @@ export async function updateLeadStage(leadId: string, stage: string) {
   return Lead.findByIdAndUpdate(
     leadId,
     { stage, stage_changed_at: new Date(), updated_at: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean({ virtuals: true });
+}
+
+export async function updateLead(id: string, data: Record<string, unknown>) {
+  await connect();
+  return Lead.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteLead(id: string) {
+  await connect();
+  return Lead.findByIdAndDelete(id);
 }
 
 export async function getLeadsWithHeatScores() {

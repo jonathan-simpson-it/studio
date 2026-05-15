@@ -3,14 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { getProject, createTask, createMilestone } from '@/lib/db/actions/projects';
+import { getProject, createTask, createMilestone, updateProject, deleteProject, updateMilestone, deleteMilestone, updateTask, deleteTask } from '@/lib/db/actions/projects';
 import { createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,9 @@ import {
   Clock,
   CheckCircle2,
   ListTodo,
+  Trash2,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRecord, Proposal, Invoice, ActivityLog, ProjectRepo } from '@/types';
@@ -67,6 +72,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showNewTask, setShowNewTask] = useState(false);
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [showNewMilestone, setShowNewMilestone] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [editMilestone, setEditMilestone] = useState<Milestone | null>(null);
 
   useEffect(() => { load(); }, [params]);
 
@@ -85,6 +93,70 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (proj.proposals) setProposals(proj.proposals);
     if (proj.invoices) setInvoices(proj.invoices);
     setActivities([]);
+  }
+
+  async function handleSaveProject(field: string, value: unknown) {
+    if (!project) return;
+    try {
+      await updateProject(project.id, { [field]: value });
+      setProject({ ...project, [field]: value } as Project);
+      toast.success('Project updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (!project) return;
+    try {
+      await deleteProject(project.id);
+      toast.success('Project deleted');
+      router.push('/projects');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    try {
+      await deleteTask(taskId);
+      toast.success('Task deleted');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete task');
+    }
+  }
+
+  async function handleUpdateTask(taskId: string, data: Record<string, unknown>) {
+    try {
+      await updateTask(taskId, data);
+      toast.success('Task updated');
+      setEditTask(null);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update task');
+    }
+  }
+
+  async function handleDeleteMilestone(milestoneId: string) {
+    try {
+      await deleteMilestone(milestoneId);
+      toast.success('Milestone deleted');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete milestone');
+    }
+  }
+
+  async function handleUpdateMilestone(milestoneId: string, data: Record<string, unknown>) {
+    try {
+      await updateMilestone(milestoneId, data);
+      toast.success('Milestone updated');
+      setEditMilestone(null);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update milestone');
+    }
   }
 
   if (!project) return null;
@@ -112,6 +184,95 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {client?.is_internal ? 'Internal — JSCo' : client?.company_name || 'Unknown'} · Started {formatDate(project.start_date)}
           </p>
         </div>
+        <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+          <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-6 grid grid-cols-2 gap-6 text-sm">
+          <div className="space-y-2">
+            <Label>Project Name</Label>
+            <Input
+              value={project.name}
+              onChange={(e) => handleSaveProject('name', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={project.status}
+              onValueChange={(v) => handleSaveProject('status', v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['Planning', 'In Progress', 'On Hold', 'Completed'].map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Billing Type</Label>
+            <Select
+              value={project.billing_type || ''}
+              onValueChange={(v) => handleSaveProject('billing_type', v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['One-off', 'Retainer', 'Milestone', 'Support'].map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Budget</Label>
+            <Input
+              type="number"
+              value={project.budget || ''}
+              onChange={(e) => handleSaveProject('budget', parseFloat(e.target.value) || 0)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Start Date</Label>
+            <Input
+              type="date"
+              value={project.start_date?.split('T')[0] || ''}
+              onChange={(e) => handleSaveProject('start_date', e.target.value ? new Date(e.target.value).toISOString() : null)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select
+              value={project.currency}
+              onValueChange={(v) => handleSaveProject('currency', v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['HKD', 'GBP', 'IDR'].map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        <Label>Description</Label>
+        <textarea
+          className="w-full rounded-md border bg-transparent p-3 text-sm"
+          rows={3}
+          value={project.description || ''}
+          onChange={(e) => handleSaveProject('description', e.target.value)}
+        />
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -199,7 +360,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </SheetTrigger>
               <SheetContent>
                 <SheetHeader><SheetTitle>Create GitHub Issue</SheetTitle></SheetHeader>
-                <GithubIssueForm repos={repos} onSubmit={async (data) => {
+                <GithubIssueForm repos={repos} projectName={project?.name} onSubmit={async (data) => {
                   try {
                     const res = await fetch('/api/github/issues', {
                       method: 'POST',
@@ -229,8 +390,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {tasks.filter((t) => t.status === status).map((t) => (
-                    <div key={t.id} className="rounded-md border p-2 text-sm space-y-1">
-                      <p className="font-medium">{t.title}</p>
+                    <div key={t.id} className="rounded-md border p-2 text-sm space-y-1 group relative">
+                      <div className="flex items-start justify-between">
+                        <p className="font-medium">{t.title}</p>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setEditTask(t)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button onClick={() => handleDeleteTask(t.id)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span>{t.priority}</span>
                         {t.due_date && <span>Due {formatDate(t.due_date)}</span>}
@@ -293,6 +464,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs text-muted-foreground w-8 text-right">{pct}%</span>
+                      <button onClick={() => setEditMilestone(m)} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDeleteMilestone(m.id)} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </CardContent>
                 </Card>
@@ -335,6 +512,51 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editTask} onOpenChange={(o) => { if (!o) setEditTask(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+            <DialogDescription>Update task details.</DialogDescription>
+          </DialogHeader>
+          {editTask && (
+            <EditTaskForm
+              task={editTask}
+              milestones={milestones}
+              onSubmit={async (data) => {
+                await handleUpdateTask(editTask.id, data);
+              }}
+              onCancel={() => setEditTask(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editMilestone} onOpenChange={(o) => { if (!o) setEditMilestone(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Milestone</DialogTitle>
+            <DialogDescription>Update milestone details.</DialogDescription>
+          </DialogHeader>
+          {editMilestone && (
+            <EditMilestoneForm
+              milestone={editMilestone}
+              onSubmit={async (data) => {
+                await handleUpdateMilestone(editMilestone.id, data);
+              }}
+              onCancel={() => setEditMilestone(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        entityName={project.name}
+        entityType="Project"
+        onConfirm={handleDeleteProject}
+      />
     </div>
   );
 }
@@ -356,6 +578,15 @@ function TaskForm({ projectId, milestones, onSubmit }: { projectId: string; mile
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Todo', 'In Progress', 'Bottlenecked', 'Done'].map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
       {milestones.length > 0 && (
         <div className="space-y-2">
           <Label>Milestone</Label>
@@ -373,10 +604,120 @@ function TaskForm({ projectId, milestones, onSubmit }: { projectId: string; mile
   );
 }
 
-function GithubIssueForm({ repos, onSubmit }: { repos: ProjectRepo[]; onSubmit: (data: { repo: string; title: string; body: string }) => Promise<void> }) {
+function EditTaskForm({ task, milestones, onSubmit, onCancel }: { task: Task; milestones: Milestone[]; onSubmit: (data: Record<string, unknown>) => Promise<void>; onCancel: () => void }) {
+  const [form, setForm] = useState<{
+    title: string;
+    priority: string;
+    status: string;
+    milestone_id: string;
+  }>({
+    title: task.title,
+    priority: task.priority || 'Medium',
+    status: task.status || 'Todo',
+    milestone_id: task.milestone_id || '_none',
+  });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); const milestoneId = form.milestone_id === '_none' ? null : form.milestone_id; onSubmit({ ...form, milestone_id: milestoneId }); }} className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Priority</Label>
+        <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Todo', 'In Progress', 'Bottlenecked', 'Done'].map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+      {milestones.length > 0 && (
+        <div className="space-y-2">
+          <Label>Milestone</Label>
+          <Select value={form.milestone_id} onValueChange={(v) => setForm({ ...form, milestone_id: v })}>
+            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">None</SelectItem>
+              {milestones.map((m) => (<SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <DialogFooter>
+        <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Save Changes</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function EditMilestoneForm({ milestone, onSubmit, onCancel }: { milestone: Milestone; onSubmit: (data: Record<string, unknown>) => Promise<void>; onCancel: () => void }) {
+  const [form, setForm] = useState<{
+    title: string;
+    due_date: string;
+    status: string;
+  }>({
+    title: milestone.title,
+    due_date: milestone.due_date?.split('T')[0] || '',
+    status: milestone.status || 'Pending',
+  });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Due Date</Label>
+        <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+      </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Pending', 'In Progress', 'Completed'].map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Save Changes</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function GithubIssueForm({ repos, projectName, onSubmit }: { repos: ProjectRepo[]; projectName?: string; onSubmit: (data: { repo: string; title: string; body: string }) => Promise<void> }) {
   const [form, setForm] = useState({ repo: repos[0]?.full_name || '', title: '', body: '' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4 pt-4">
+      <div className="flex items-center justify-between">
+        <Label>Smart Fill</Label>
+        <SmartFillButton
+          action="parse-github-issue"
+          context={{ project_name: projectName }}
+          onFill={(fields) => {
+            if (fields.title) setForm((f) => ({ ...f, title: fields.title as string }));
+            if (fields.body) setForm((f) => ({ ...f, body: fields.body as string }));
+            if (fields.labels) {
+              const labels = Array.isArray(fields.labels) ? fields.labels.join(', ') : fields.labels as string;
+              if (labels) setForm((f) => ({ ...f, body: f.body ? `${f.body}\n\nLabels: ${labels}` : `Labels: ${labels}` }));
+            }
+          }}
+          label="Smart Fill"
+          entityLabel="issue"
+        />
+      </div>
       <div className="space-y-2">
         <Label>Repository</Label>
         <Select value={form.repo} onValueChange={(v) => setForm({ ...form, repo: v })}>

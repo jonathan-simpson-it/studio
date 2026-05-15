@@ -17,6 +17,11 @@ const AI_ACTIONS: AIActionType[] = [
   'autofill-task-description',
   'parse-event-nl',
   'summarize-calendar',
+  'parse-task',
+  'parse-github-issue',
+  'parse-email',
+  'parse-proposal',
+  'parse-invoice',
 ];
 
 export async function POST(request: NextRequest) {

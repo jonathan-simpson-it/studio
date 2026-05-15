@@ -205,3 +205,44 @@ const fileRecordSchema = new Schema<IFileRecord>({
 });
 
 export const FileRecord = mongoose.models.FileRecord || mongoose.model<IFileRecord>('FileRecord', fileRecordSchema);
+
+export interface IEmailOutbox extends Document {
+  user_id: string;
+  from_email: string;
+  to_email: string;
+  to_name: string;
+  subject: string;
+  body_text: string;
+  body_html: string | null;
+  status: 'sent' | 'failed' | 'draft';
+  resend_id: string | null;
+  entity_type: 'invoice' | 'proposal' | 'general' | 'follow-up' | null;
+  entity_id: string | null;
+  attachment_ids: string[];
+  error_message: string | null;
+  sent_at: Date | null;
+  created_at: Date;
+}
+
+const emailOutboxSchema = new Schema<IEmailOutbox>({
+  user_id: { type: String, required: true },
+  from_email: { type: String, required: true },
+  to_email: { type: String, required: true },
+  to_name: { type: String, default: '' },
+  subject: { type: String, required: true },
+  body_text: { type: String, default: '' },
+  body_html: { type: String, default: null },
+  status: { type: String, enum: ['sent', 'failed', 'draft'], default: 'draft' },
+  resend_id: { type: String, default: null },
+  entity_type: { type: String, enum: ['invoice', 'proposal', 'general', 'follow-up'], default: null },
+  entity_id: { type: String, default: null },
+  attachment_ids: [{ type: String }],
+  error_message: { type: String, default: null },
+  sent_at: { type: Date, default: null },
+  created_at: { type: Date, default: Date.now },
+});
+
+emailOutboxSchema.index({ user_id: 1, sent_at: -1 });
+emailOutboxSchema.index({ entity_type: 1, entity_id: 1 });
+
+export const EmailOutbox = mongoose.models.EmailOutbox || mongoose.model<IEmailOutbox>('EmailOutbox', emailOutboxSchema);

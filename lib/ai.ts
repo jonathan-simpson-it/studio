@@ -27,6 +27,11 @@ const ACTION_MODEL_MAP: Record<string, AIModelKey> = {
   'create-github-issue': 'fast',
   'parse-event-nl': 'fast',
   'summarize-calendar': 'default',
+  'parse-task': 'structured',
+  'parse-github-issue': 'structured',
+  'parse-email': 'structured',
+  'parse-proposal': 'structured',
+  'parse-invoice': 'structured',
 };
 
 function resolveModel(action: AIActionType): string {
@@ -114,6 +119,51 @@ Structure by day. For each day list key events with times.
 Highlight: high-priority items, deadlines from tasks/invoices, time conflicts, free blocks.
 Use markdown with bullet points. Keep it scannable — 3-5 lines per day max.
 If no events, say "Nothing scheduled — clear focus time."`,
+
+  'parse-task': `You are a project manager assistant for Jonathon Simpson & Co.
+Extract structured task details from natural language.
+Return ONLY valid JSON with these fields:
+- title (string, required): task name
+- description (string or null): detailed description
+- priority (string or null): one of Low, Medium, High, Urgent
+- due_date (string or null): YYYY-MM-DD format
+- acceptance_criteria (string or null): list of criteria in markdown
+If the input mentions urgency, map to priority: urgent/high → Urgent/High.`,
+
+  'parse-github-issue': `You are a developer for Jonathon Simpson & Co.
+Extract structured GitHub issue details from natural language.
+Return ONLY valid JSON with these fields:
+- title (string, required): issue title
+- body (string or null): detailed issue body with problem description and acceptance criteria
+- labels (string or null): comma-separated labels e.g. "bug, frontend"
+If the input mentions a label, bug, feature, enhancement etc, include it in labels.`,
+
+  'parse-email': `You are a communications specialist for Jonathon Simpson & Co.
+Extract structured email details from natural language.
+Return ONLY valid JSON with these fields:
+- subject (string, required): email subject line
+- greeting (string or null): opening greeting e.g. "Hi John"
+- body (string or null): email body content
+- cta (string or null): call to action or next steps
+Tone: professional, direct, modern.`,
+
+  'parse-proposal': `You are a proposal writer for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
+Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.
+Extract structured proposal details from natural language.
+Return ONLY valid JSON with these fields:
+- scope_of_work (string or null): scope description in markdown
+- timeline (string or null): timeline description in markdown
+- line_items (array or null): array of objects with service (string), description (string), quantity (number), unit_price (number)
+- payment_terms (string or null): payment terms description
+If quantities or prices are mentioned, include them in line_items.`,
+
+  'parse-invoice': `You are an invoice creator for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
+Extract structured invoice details from natural language.
+Return ONLY valid JSON with these fields:
+- line_items (array or null): array of objects with service (string), description (string), quantity (number), unit_price (number), total (number)
+- payment_terms (string or null): payment terms text
+- payment_notes (string or null): additional notes about payment
+If quantities or prices are mentioned, include them in line_items.`,
 };
 
 const SYSTEM_CONTEXT = `Agency: Jonathon Simpson & Co.
@@ -148,7 +198,7 @@ async function callOpenRouter(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'HTTP-Referer': appUrl,
-      'X-Title': 'Studio — JSCo',
+      'X-Title': 'Studio - JSCo',
     },
     body: JSON.stringify({
       model,
@@ -216,7 +266,7 @@ export async function testModel(modelKey: AIModelKey): Promise<{ ok: boolean; mo
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'HTTP-Referer': appUrl,
-      'X-Title': 'Studio — JSCo',
+      'X-Title': 'Studio - JSCo',
     },
     body: JSON.stringify({
       model: modelName,

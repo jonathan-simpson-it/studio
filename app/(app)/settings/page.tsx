@@ -108,11 +108,11 @@ export default function SettingsPage() {
 
     fetch('/api/ai/models').then((r) => r.json()).then((data) => {
       if (data.actions) setModelMap(data.actions);
-    });
+    }).catch(() => {});
 
     fetch('/api/keys').then((r) => r.json()).then((data) => {
       if (Array.isArray(data)) setApiKeys(data);
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -168,10 +168,12 @@ export default function SettingsPage() {
     }
   }
 
-  async function updateIntegration(service: string, key: string) {
+  async function updateIntegration(service: string, key: string, orgName?: string) {
     const encrypted = btoa(key);
     try {
-      await upsertIntegration(service, encrypted);
+      const extraConfig: Record<string, unknown> = {};
+      if (service === 'github' && orgName) extraConfig.org = orgName;
+      await upsertIntegration(service, encrypted, extraConfig);
       toast.success(`${service} key saved`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save');
@@ -562,7 +564,7 @@ export default function SettingsPage() {
                   title="GitHub API Key"
                   service="github"
                   currentKey={integrations.github?.encrypted_key ? '••••••••' : ''}
-                  onSave={(key) => updateIntegration('github', key)}
+                  onSave={(key, orgName) => updateIntegration('github', key, orgName)}
                   extraFields={integrations.github?.extra_config as any}
                 />
                 <IntegrationField
@@ -843,10 +845,11 @@ function IntegrationField({
   title: string;
   service: string;
   currentKey: string;
-  onSave: (key: string) => void;
+  onSave: (key: string, orgName?: string) => void;
   extraFields?: { org?: string };
 }) {
   const [key, setKey] = useState('');
+  const [org, setOrg] = useState(extraFields?.org || '');
 
   return (
     <div className="space-y-3">
@@ -862,16 +865,14 @@ function IntegrationField({
           onChange={(e) => setKey(e.target.value)}
           className="flex-1"
         />
-        <Button onClick={() => onSave(key)} disabled={!key}>Save</Button>
+        <Button onClick={() => onSave(key, org)} disabled={!key}>Save</Button>
       </div>
       {service === 'github' && (
         <Input
           placeholder="GitHub Org Name"
           className="text-sm"
-          value={extraFields?.org || ''}
-          onChange={(e) => {
-            // Save org name
-          }}
+          value={org}
+          onChange={(e) => setOrg(e.target.value)}
         />
       )}
     </div>

@@ -36,7 +36,7 @@ export async function PUT(
 
   await connect();
 
-  const data = await Calendar.findByIdAndUpdate(id, { name, color }, { new: true }).lean({ virtuals: true });
+  const data = await Calendar.findByIdAndUpdate(id, { name, color }, { returnDocument: 'after' }).lean({ virtuals: true });
   if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   return NextResponse.json(data);

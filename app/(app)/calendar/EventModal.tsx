@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { parseNaturalLanguage } from '@/lib/parser/nlp';
 import { detectConflicts, type EventLike } from '@/lib/calendar-engine/conflicts';
 import { parseICS, type ParsedICSEvent } from '@/lib/calendar-engine/ics-parse';
@@ -203,7 +204,7 @@ export function EventModal({
     if (!data.title?.trim()) return;
 
     const conflicts = detectConflicts(
-      events.filter((ev) => ev.id !== event?.id),
+      events.filter((ev) => ev.id !== event?.id && ev.calendar_id === data.calendar_id),
       data as CalendarEvent
     );
 
@@ -567,6 +568,25 @@ export function EventModal({
             </TabsContent>
 
             <TabsContent value="form" className="space-y-3 pt-3">
+              <div className="flex items-center justify-between">
+                <Label>Smart Fill</Label>
+                <SmartFillButton
+                  action="parse-event-nl"
+                  context={{ calendar_name: calendars.find((c) => c.id === calendarId)?.name || null }}
+                  onFill={(fields) => {
+                    if (fields.title) setTitle(fields.title as string);
+                    if (fields.startDate) setStartDate(fields.startDate as string);
+                    if (fields.startTime) setStartTime(fields.startTime as string);
+                    if (fields.endDate) setEndDate(fields.endDate as string);
+                    if (fields.endTime) setEndTime(fields.endTime as string);
+                    if (fields.rrule) setRrule(fields.rrule as string);
+                    if (fields.location) setLocation(fields.location as string);
+                    if (fields.description) setDescription(fields.description as string);
+                  }}
+                  label="Smart Fill"
+                  entityLabel="event"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Title *</Label>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Event title" />

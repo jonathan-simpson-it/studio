@@ -19,6 +19,8 @@ export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly';
 export type MilestoneStatus = 'Open' | 'In Progress' | 'Completed';
 export type ApiKeyScope = 'read' | 'write' | 'full';
 export type MessageImportance = 'high' | 'medium' | 'low';
+export type EmailOutboxStatus = 'sent' | 'failed' | 'draft';
+export type EmailEntityType = 'invoice' | 'proposal' | 'general' | 'follow-up';
 export type AvatarProvider = 'github' | 'google';
 
 export type AIModelKey = 'default' | 'longform' | 'structured' | 'multilingual' | 'fast';
@@ -37,7 +39,12 @@ export type AIActionType =
   | 'autofill-note'
   | 'autofill-task-description'
   | 'parse-event-nl'
-  | 'summarize-calendar';
+  | 'summarize-calendar'
+  | 'parse-task'
+  | 'parse-github-issue'
+  | 'parse-email'
+  | 'parse-proposal'
+  | 'parse-invoice';
 
 export type EventSourceType = 'task' | 'milestone' | 'invoice' | 'proposal' | 'github_issue';
 
@@ -181,6 +188,7 @@ export interface SyncedGithubIssue {
   assignee_github_login: string | null;
   labels: Array<{ name: string; color: string }>;
   milestone_title: string | null;
+  milestone_due_on: string | null;
   github_url: string | null;
   synced_at: string;
   created_at_github: string | null;
@@ -279,6 +287,25 @@ export interface FileRecord {
   client_id: string | null;
   project_id: string | null;
   uploaded_by: string;
+  created_at: string;
+}
+
+export interface EmailOutbox {
+  id: string;
+  user_id: string;
+  from_email: string;
+  to_email: string;
+  to_name: string;
+  subject: string;
+  body_text: string;
+  body_html: string | null;
+  status: EmailOutboxStatus;
+  resend_id: string | null;
+  entity_type: EmailEntityType | null;
+  entity_id: string | null;
+  attachment_ids: string[];
+  error_message: string | null;
+  sent_at: string;
   created_at: string;
 }
 
@@ -439,6 +466,9 @@ export interface Calendar {
   name: string;
   color: string;
   is_default: boolean;
+  type: 'personal' | 'shared';
+  sync_to_google: boolean;
+  google_calendar_id: string | null;
   created_by: string;
   created_at: string;
 }
@@ -464,6 +494,9 @@ export interface CalendarEvent {
   external_source_id: string | null;
   external_event_id: string | null;
   version: number;
+  google_events: { user_id: string; google_event_id: string }[];
+  sync_status: 'synced' | 'pending' | 'failed';
+  sync_retry_count: number;
   created_by: string;
   created_at: string;
   updated_at: string;

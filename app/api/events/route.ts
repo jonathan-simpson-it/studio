@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connect } from '@/lib/db/connect';
-import { Event } from '@/lib/db/models/calendar';
+import { Calendar, Event } from '@/lib/db/models/calendar';
 import { ActivityLog } from '@/lib/db/models/crm';
 import { auth } from '@/auth';
 import { detectConflicts } from '@/lib/calendar-engine/conflicts';
+import { syncEventToGoogle } from '@/lib/google/calendar-write';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -77,8 +78,8 @@ export async function POST(request: NextRequest) {
     title,
     description: description || null,
     location: location || null,
-    start_time,
-    end_time,
+    start_time: new Date(start_time),
+    end_time: new Date(end_time),
     is_all_day: is_all_day || false,
     color: color || null,
     rrule: rrule || null,
@@ -86,10 +87,38 @@ export async function POST(request: NextRequest) {
   });
 
   const result = event.toObject({ virtuals: true });
+  const eventId = result._id.toString();
+
+  const calendar = await Calendar.findById(calendar_id).lean({ virtuals: true });
+  const cal = calendar as any;
+
+  if (cal?.sync_to_google) {
+    const syncResult = await syncEventToGoogle(
+      {
+        id: eventId,
+        calendar_id,
+        title,
+        description: description || null,
+        location: location || null,
+        start_time: new Date(start_time),
+        end_time: new Date(end_time),
+        is_all_day: is_all_day || false,
+      },
+      { type: cal.type, google_calendar_id: cal.google_calendar_id },
+      session.user.id
+    );
+
+    await Event.findByIdAndUpdate(eventId, {
+      google_events: syncResult.google_events,
+      sync_status: syncResult.sync_status,
+    });
+    (result as any).sync_status = syncResult.sync_status;
+    (result as any).google_events = syncResult.google_events;
+  }
 
   await ActivityLog.create({
     entity_type: 'event',
-    entity_id: result._id.toString(),
+    entity_id: eventId,
     action: 'created',
     actor_id: session.user.id,
     meta: { title },

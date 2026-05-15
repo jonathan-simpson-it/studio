@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getInvoice, updateInvoice } from '@/lib/db/actions/invoices';
+import { getInvoice, updateInvoice, deleteInvoice } from '@/lib/db/actions/invoices';
 import { listClients } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,11 +23,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
+import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { Switch } from '@/components/ui/switch';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Plus, Trash2, Send, CheckCircle } from 'lucide-react';
+import { sendInvoiceWithEmail, sendProposalWithEmail } from '@/lib/db/actions/email';
+import { ArrowLeft, Plus, Trash2, Send, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Invoice, Client, LineItem } from '@/types';
 
@@ -37,7 +40,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [clients, setClients] = useState<Client[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [showPaid, setShowPaid] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [sendSubject, setSendSubject] = useState('');
+  const [sendBody, setSendBody] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => { load(); }, [params]);
 
@@ -89,12 +97,39 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   async function handleSend() {
     if (!invoice) return;
     await handleSave();
+    const client = (invoice as any).client as Client | undefined;
+    setSendSubject(`Invoice ${invoice.invoice_number} from Jonathon Simpson & Co.`);
+    setSendBody(`Dear ${client?.contact_name || 'Client'},
+
+Please find attached invoice ${invoice.invoice_number} from Jonathon Simpson & Co.
+
+Total: ${formatCurrency(invoice.total, invoice.currency)}
+Due: ${invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-GB') : 'Upon receipt'}
+
+Please don't hesitate to reach out if you have any questions.
+
+Thank you for your business.
+
+— Jonathon Simpson & Co.`);
+    setShowSendDialog(true);
+  }
+
+  async function handleSendConfirm() {
+    if (!invoice) return;
+    setSending(true);
     try {
-      await updateInvoice(invoice.id, { status: 'Sent', sent_at: new Date().toISOString() } as Record<string, unknown>);
-      toast.success('Invoice marked as sent');
-      load();
+      const result = await sendInvoiceWithEmail(invoice.id, sendSubject, sendBody);
+      if (result.status === 'sent') {
+        toast.success('Invoice sent via email');
+        setShowSendDialog(false);
+        load();
+      } else {
+        toast.error(`Failed to send: ${result.errorMessage}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -107,6 +142,17 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to mark paid');
+    }
+  }
+
+  async function handleDelete() {
+    if (!invoice) return;
+    try {
+      await deleteInvoice(invoice.id);
+      toast.success('Invoice deleted');
+      router.push('/invoices');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
     }
   }
 
@@ -127,14 +173,41 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <p className="text-sm text-muted-foreground">{formatCurrency(total, invoice.currency)}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+          <SmartFillButton
+            action="parse-invoice"
+            context={{
+              invoice_number: invoice.invoice_number,
+              currency: invoice.currency,
+              client_name: clients.find((c) => c.id === invoice.client_id)?.company_name || null,
+            }}
+            onFill={(fields) => {
+              if (fields.payment_terms) handleField('payment_terms', fields.payment_terms as string);
+              if (fields.payment_notes) {
+                setPaymentNotes(fields.payment_notes as string);
+                handleField('payment_notes', fields.payment_notes as string);
+              }
+              if (fields.line_items) {
+                const items = fields.line_items as Array<{ service: string; description: string; quantity: number; unit_price: number }>;
+                if (items.length > 0) setLineItems(items.map((item) => ({
+                  service: item.service || '',
+                  description: item.description || '',
+                  quantity: item.quantity || 1,
+                  unit_price: item.unit_price || 0,
+                  total: (item.quantity || 1) * (item.unit_price || 0),
+                })));
+              }
+            }}
+            label="Smart Fill"
+            entityLabel="invoice"
+          />
           <AIGenerateButton
             action="generate-invoice"
             context={{ invoice_number: invoice.invoice_number, currency: invoice.currency }}
             onResult={(content) => handleField('payment_terms', content)}
           />
           <Button onClick={handleSave} variant="outline">Save Draft</Button>
-          {['Draft', 'Overdue'].includes(invoice.status) && <Button onClick={handleSend}><Send className="mr-2 h-4 w-4" /> Send</Button>}
+          {['Draft', 'Overdue'].includes(invoice.status) && <Button onClick={() => handleSend()}><Send className="mr-2 h-4 w-4" /> Send</Button>}
           {['Sent', 'Overdue'].includes(invoice.status) && (
             <Button onClick={() => setShowPaid(true)}>
               <CheckCircle className="mr-2 h-4 w-4" /> Mark Paid
@@ -149,6 +222,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               Cancel
             </Button>
           )}
+          <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete
+          </Button>
         </div>
       </div>
 
@@ -296,6 +372,97 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Send Invoice</DialogTitle>
+            <DialogDescription>Review the email before sending to the client.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>To</Label>
+              <Input
+                value={((invoice as any)?.client as any)?.email || ''}
+                readOnly
+                className="bg-muted"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Subject</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 text-xs"
+                  onClick={async () => {
+                    const { generateAIContent } = await import('@/lib/ai');
+                    const ai = await generateAIContent('draft-email', {
+                      purpose: 'invoice_sending',
+                      invoice_number: invoice?.invoice_number,
+                      total: invoice?.total,
+                      currency: invoice?.currency,
+                    });
+                    if (ai) {
+                      const lines = ai.trim().split('\n');
+                      const subjLine = lines.find(l => l.toLowerCase().startsWith('subject'));
+                      if (subjLine) setSendSubject(subjLine.replace(/^subject:\s*/i, ''));
+                    }
+                  }}
+                >
+                  <Sparkles className="h-3 w-3" /> AI Subject
+                </Button>
+              </div>
+              <Input value={sendSubject} onChange={(e) => setSendSubject(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Body</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 text-xs"
+                  onClick={async () => {
+                    const { generateAIContent } = await import('@/lib/ai');
+                    const ai = await generateAIContent('draft-email', {
+                      purpose: 'invoice_sending',
+                      invoice_number: invoice?.invoice_number,
+                      total: invoice?.total,
+                      currency: invoice?.currency,
+                      client_name: ((invoice as any)?.client as any)?.contact_name || 'Client',
+                    });
+                    if (ai) setSendBody(ai.replace(/^subject:.*\n/i, '').trim());
+                  }}
+                >
+                  <Sparkles className="h-3 w-3" /> AI Improve
+                </Button>
+              </div>
+              <textarea
+                className="w-full rounded-md border bg-transparent p-3 text-sm min-h-[180px]"
+                value={sendBody}
+                onChange={(e) => setSendBody(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSendDialog(false)}>Cancel</Button>
+            <Button onClick={handleSendConfirm} disabled={sending}>
+              {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              {sending ? 'Sending...' : 'Send'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        entityName={invoice.invoice_number}
+        entityType="Invoice"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 

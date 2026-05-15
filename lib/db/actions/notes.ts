@@ -22,7 +22,12 @@ export async function createNote(data: Record<string, unknown>) {
 
 export async function updateNote(id: string, data: Record<string, unknown>) {
   await connect();
-  return Note.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  return Note.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteNote(id: string) {
+  await connect();
+  return Note.findByIdAndDelete(id);
 }
 
 export async function getNotesForEntity(

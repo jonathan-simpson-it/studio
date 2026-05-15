@@ -50,6 +50,16 @@ export async function createClient(data: Record<string, unknown>) {
   return toPlain(client.toObject({ virtuals: true }));
 }
 
+export async function updateClient(id: string, data: Record<string, unknown>) {
+  await connect();
+  return Client.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteClient(id: string) {
+  await connect();
+  return Client.findByIdAndDelete(id);
+}
+
 export async function getClientCount() {
   await connect();
   return Client.countDocuments({ is_internal: false });

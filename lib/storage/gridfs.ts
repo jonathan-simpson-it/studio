@@ -48,6 +48,7 @@ export async function getFilesForEntity(
   entityType: 'client' | 'project',
   entityId: string
 ) {
+  await connect();
   const field = entityType === 'client' ? 'client_id' : 'project_id';
   return FileRecord.find({ [field]: entityId }).sort({ created_at: -1 }).lean();
 }
@@ -62,9 +63,12 @@ export async function createFileRecord(data: {
   project_id?: string;
   uploaded_by: string;
 }) {
-  return FileRecord.create(data);
+  await connect();
+  const record = await FileRecord.create(data);
+  return record.toObject({ virtuals: true });
 }
 
 export async function deleteFileRecord(storagePath: string) {
+  await connect();
   return FileRecord.deleteOne({ storage_path: storagePath });
 }

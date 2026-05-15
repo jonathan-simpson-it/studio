@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
+import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { formatDate } from '@/lib/utils';
 import { Search, Plus, Lock, Globe } from 'lucide-react';
 import { toast } from 'sonner';
@@ -114,6 +115,18 @@ function NoteForm({ onSubmit }: { onSubmit: (data: Partial<Note>) => Promise<voi
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form as Partial<Note>); }} className="space-y-4 pt-4">
+      <div className="flex items-center justify-between">
+        <Label>Smart Fill</Label>
+        <SmartFillButton
+          action="autofill-note"
+          onFill={(fields) => {
+            if (fields.title) setForm((f) => ({ ...f, title: fields.title as string }));
+            if (fields.body) setForm((f) => ({ ...f, body: fields.body as string }));
+          }}
+          label="Smart Fill"
+          entityLabel="note"
+        />
+      </div>
       <div className="space-y-2">
         <Label>Title</Label>
         <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />

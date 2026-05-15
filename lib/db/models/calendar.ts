@@ -3,7 +3,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface ICalendar extends Document {
   name: string;
   color: string;
+  type: string;
   is_default: boolean;
+  google_calendar_id: string | null;
   created_by: string;
   created_at: Date;
 }
@@ -11,7 +13,9 @@ export interface ICalendar extends Document {
 const calendarSchema = new Schema<ICalendar>({
   name: { type: String, required: true },
   color: { type: String, default: '#3b82f6' },
+  type: { type: String, default: 'personal' },
   is_default: { type: Boolean, default: false },
+  google_calendar_id: { type: String, default: null },
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
 });
@@ -34,6 +38,11 @@ calendarMemberSchema.index({ calendar_id: 1, user_id: 1 }, { unique: true });
 
 export const CalendarMember = mongoose.models.CalendarMember || mongoose.model<ICalendarMember>('CalendarMember', calendarMemberSchema);
 
+export interface IGoogleEventRef {
+  user_id: string;
+  google_event_id: string;
+}
+
 export interface IEvent extends Document {
   calendar_id: string;
   title: string;
@@ -47,10 +56,18 @@ export interface IEvent extends Document {
   external_source_id: string | null;
   external_event_id: string | null;
   version: number;
+  google_events: IGoogleEventRef[];
+  sync_status: 'synced' | 'pending' | 'failed';
+  sync_retry_count: number;
   created_by: string;
   created_at: Date;
   updated_at: Date;
 }
+
+const googleEventRefSchema = new Schema<IGoogleEventRef>({
+  user_id: { type: String, required: true },
+  google_event_id: { type: String, required: true },
+}, { _id: false });
 
 const eventSchema = new Schema<IEvent>({
   calendar_id: { type: String, required: true },
@@ -65,6 +82,9 @@ const eventSchema = new Schema<IEvent>({
   external_source_id: { type: String, default: null },
   external_event_id: { type: String, default: null },
   version: { type: Number, default: 1 },
+  google_events: { type: [googleEventRefSchema], default: [] },
+  sync_status: { type: String, enum: ['synced', 'pending', 'failed'], default: 'synced' },
+  sync_retry_count: { type: Number, default: 0 },
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },

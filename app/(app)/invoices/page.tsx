@@ -2,25 +2,47 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { listInvoices } from '@/lib/db/actions/invoices';
+import { listInvoices, processOverdueChecks } from '@/lib/db/actions/invoices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils';
-import { Search } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Invoice } from '@/types';
 
 export default function InvoicesPage() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState('');
+  const [checking, setChecking] = useState(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    processOverdueChecks().catch(() => {});
+    load();
+  }, []);
 
   async function load() {
     const data = await listInvoices();
     if (data) setInvoices(data);
+  }
+
+  async function handleCheckOverdue() {
+    setChecking(true);
+    try {
+      const result = await processOverdueChecks();
+      await load();
+      if (result.overdue > 0 || result.recurring_generated > 0) {
+        toast.success(`${result.overdue} overdue, ${result.recurring_generated} recurring generated`);
+      } else {
+        toast.success('Check complete — no changes');
+      }
+    } catch {
+      toast.error('Overdue check failed');
+    } finally {
+      setChecking(false);
+    }
   }
 
   const outstandingTotal = invoices
@@ -52,6 +74,10 @@ export default function InvoicesPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search invoices..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
         </div>
+        <Button variant="outline" size="sm" onClick={handleCheckOverdue} disabled={checking}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${checking ? 'animate-spin' : ''}`} />
+          {checking ? 'Checking...' : 'Check Overdue'}
+        </Button>
       </div>
 
       <Card>

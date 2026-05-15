@@ -3,12 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClientDetail } from '@/lib/db/actions/details';
+import { updateClient, deleteClient } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Client, Project, Invoice, Proposal, Note, FileRecord, ActivityLog } from '@/types';
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,6 +32,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [notes, setNotes] = useState<Note[]>([]);
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [showDelete, setShowDelete] = useState(false);
 
   useEffect(() => { load(); }, [params]);
 
@@ -38,6 +51,28 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     if (detail.activity) setActivities(detail.activity);
   }
 
+  async function handleSave(field: string, value: unknown) {
+    if (!client) return;
+    try {
+      await updateClient(client.id, { [field]: value });
+      setClient({ ...client, [field]: value } as Client);
+      toast.success('Client updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    }
+  }
+
+  async function handleDelete() {
+    if (!client) return;
+    try {
+      await deleteClient(client.id);
+      toast.success('Client deleted');
+      router.push('/clients');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  }
+
   if (!client) return null;
 
   return (
@@ -51,14 +86,61 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           <h2 className="text-xl font-semibold">{client.company_name}</h2>
           <p className="text-sm text-muted-foreground mt-1">{client.contact_name}</p>
         </div>
+        <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+          <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </Button>
       </div>
 
       <Card>
-        <CardContent className="p-6 grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-muted-foreground">Email:</span> {client.email || '—'}</div>
-          <div><span className="text-muted-foreground">Phone:</span> {client.phone || '—'}</div>
-          <div><span className="text-muted-foreground">Currency:</span> {client.currency_preference}</div>
-          <div><span className="text-muted-foreground">Joined:</span> {formatDate(client.created_at)}</div>
+        <CardContent className="p-6 grid grid-cols-2 gap-6 text-sm">
+          <div className="space-y-2">
+            <Label>Company Name</Label>
+            <Input
+              value={client.company_name || ''}
+              onChange={(e) => handleSave('company_name', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Contact Name</Label>
+            <Input
+              value={client.contact_name || ''}
+              onChange={(e) => handleSave('contact_name', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Email</Label>
+            <Input
+              value={client.email || ''}
+              onChange={(e) => handleSave('email', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone</Label>
+            <Input
+              value={client.phone || ''}
+              onChange={(e) => handleSave('phone', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select
+              value={client.currency_preference}
+              onValueChange={(v) => handleSave('currency_preference', v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['HKD', 'GBP', 'IDR'].map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Joined</Label>
+            <p className="pt-1.5 text-muted-foreground">{formatDate(client.created_at)}</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -147,6 +229,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDeleteDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        entityName={client.company_name}
+        entityType="Client"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

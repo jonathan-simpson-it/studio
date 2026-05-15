@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import {
   LayoutDashboard,
@@ -21,6 +23,7 @@ import {
   Calendar,
   Inbox,
 } from 'lucide-react';
+import { getInboxStats } from '@/lib/db/actions/email';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,6 +44,11 @@ const navItemsSecondary = [
 
 export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    getInboxStats().then((stats) => setUnreadCount(stats.unread)).catch(() => {});
+  }, []);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-60 flex-col border-r bg-background">
@@ -99,7 +107,12 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.href === '/inbox' && unreadCount > 0 && (
+                <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px]">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              )}
             </span>
           </Link>
         ))}

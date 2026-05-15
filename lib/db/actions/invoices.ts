@@ -33,7 +33,12 @@ export async function createProposal(data: Record<string, unknown>) {
 
 export async function updateProposal(id: string, data: Record<string, unknown>) {
   await connect();
-  return Proposal.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  return Proposal.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteProposal(id: string) {
+  await connect();
+  return Proposal.findByIdAndDelete(id);
 }
 
 export async function getProposalNumber(): Promise<string> {
@@ -43,7 +48,7 @@ export async function getProposalNumber(): Promise<string> {
   const seq = await DocNumberSequence.findOneAndUpdate(
     { entity_type: 'proposal', year },
     { $inc: { sequence: 1 } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
   return `PROP-${year}-${String(seq.sequence).padStart(4, '0')}`;
 }
@@ -70,7 +75,12 @@ export async function createInvoice(data: Record<string, unknown>) {
 
 export async function updateInvoice(id: string, data: Record<string, unknown>) {
   await connect();
-  return Invoice.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { new: true }).lean({ virtuals: true });
+  return Invoice.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+}
+
+export async function deleteInvoice(id: string) {
+  await connect();
+  return Invoice.findByIdAndDelete(id);
 }
 
 export async function getInvoiceNumber(): Promise<string> {
@@ -80,7 +90,7 @@ export async function getInvoiceNumber(): Promise<string> {
   const seq = await DocNumberSequence.findOneAndUpdate(
     { entity_type: 'invoice', year },
     { $inc: { sequence: 1 } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
   return `INV-${year}-${String(seq.sequence).padStart(4, '0')}`;
 }
@@ -116,12 +126,75 @@ export async function getRecurringInvoicesDueToday() {
   return Invoice.find({ is_recurring: true, next_issue_date: new Date(today) }).lean({ virtuals: true });
 }
 
+export async function processOverdueChecks() {
+  await connect();
+  const today = new Date().toISOString().split('T')[0];
+
+  const overdueResult = await Invoice.updateMany(
+    { status: 'Sent', due_date: { $lt: new Date(today), $ne: null } },
+    { $set: { status: 'Overdue', updated_at: new Date() } }
+  );
+  const overdueCount = overdueResult.modifiedCount;
+
+  const recurringInvoices = await Invoice.find({
+    is_recurring: true,
+    next_issue_date: new Date(today),
+  }).lean({ virtuals: true });
+
+  let generatedCount = 0;
+
+  for (const inv of recurringInvoices as any[]) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const seq = await DocNumberSequence.findOneAndUpdate(
+      { entity_type: 'invoice', year },
+      { $inc: { sequence: 1 } },
+      { upsert: true, returnDocument: 'after' }
+    );
+    const invoiceNumber = `INV-${year}-${String(seq.sequence).padStart(3, '0')}`;
+
+    await Invoice.create({
+      invoice_number: invoiceNumber,
+      client_id: inv.client_id,
+      project_id: inv.project_id,
+      status: 'Draft',
+      currency: inv.currency,
+      line_items: inv.line_items,
+      discount_percent: inv.discount_percent,
+      subtotal: inv.subtotal,
+      tax_label: inv.tax_label,
+      tax_percent: inv.tax_percent,
+      total: inv.total,
+      issue_date: new Date(today),
+      payment_terms: inv.payment_terms,
+      is_recurring: true,
+      recurring_frequency: inv.recurring_frequency,
+      created_by: inv.created_by,
+    });
+
+    generatedCount++;
+
+    const nextDate = new Date(inv.next_issue_date);
+    switch (inv.recurring_frequency) {
+      case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
+      case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
+      case 'quarterly': nextDate.setMonth(nextDate.getMonth() + 3); break;
+    }
+
+    await Invoice.findByIdAndUpdate(inv._id, {
+      next_issue_date: nextDate.toISOString().split('T')[0],
+    });
+  }
+
+  return { overdue: overdueCount, recurring_generated: generatedCount };
+}
+
 export async function getAllInvoicesWithDueDates() {
   await connect();
-  return Invoice.find({ due_date: { $ne: null } }).select('id invoice_number due_date client_id project_id').lean({ virtuals: true });
+  return toPlain(await Invoice.find({ due_date: { $ne: null } }).select('id invoice_number due_date client_id project_id').lean({ virtuals: true }));
 }
 
 export async function getAllProposalsWithExpiry() {
   await connect();
-  return Proposal.find({ expires_at: { $ne: null } }).select('id proposal_number client_id expires_at').lean({ virtuals: true });
+  return toPlain(await Proposal.find({ expires_at: { $ne: null } }).select('id proposal_number client_id expires_at').lean({ virtuals: true }));
 }
