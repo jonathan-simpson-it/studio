@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentUser } from '@/lib/db/actions/settings';
 import { listCalendars, getEventsForCalendar, createEvent, updateEvent, deleteEvent, processPendingReminders } from '@/lib/db/actions/calendar';
 import { syncAllGithubIssues } from '@/lib/db/actions/projects';
@@ -94,7 +95,7 @@ export default function CalendarClient({
   githubIssues: SyntheticGithubIssue[];
 }) {
   const router = useRouter();
-  const [calendars, setCalendars] = useState<Calendar[]>(initCalendars);
+  const queryClient = useQueryClient();
   const [events, setEvents] = useState<CalendarEvent[]>(initEvents);
   const [selectedCalendars, setSelectedCalendars] = useState<Set<string>>(
     new Set(initCalendars.map((c) => c.id))
@@ -107,6 +108,12 @@ export default function CalendarClient({
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [createCalOpen, setCreateCalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  const { data: calendars = initCalendars } = useQuery({
+    queryKey: ['calendars'],
+    queryFn: listCalendars,
+    initialData: initCalendars,
+  });
 
   useEffect(() => {
     processPendingReminders().catch(() => {});
@@ -217,9 +224,9 @@ export default function CalendarClient({
         allCals.map((cal: any) => getEventsForCalendar(cal.id, monthStart, monthEnd))
       );
       setEvents(allEvts.flat());
-      setCalendars(allCals);
+      queryClient.setQueryData(['calendars'], allCals);
     }
-  }, []);
+  }, [queryClient]);
 
   function navigatePrev() {
     if (view === 'month') setCurrentDate(subMonths(currentDate, 1));
@@ -327,8 +334,13 @@ export default function CalendarClient({
   }
 
   async function handleCalendarCreated() {
+    queryClient.invalidateQueries({ queryKey: ['calendars'] });
     const allCals = await listCalendars();
-    setCalendars(allCals);
+    const now = new Date();
+    const allEvts = await Promise.all(
+      allCals.map((cal: any) => getEventsForCalendar(cal.id, startOfMonth(now), endOfMonth(now)))
+    );
+    setEvents(allEvts.flat());
   }
 
   const titleText =

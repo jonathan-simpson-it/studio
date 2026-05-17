@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { listProposals } from '@/lib/db/actions/invoices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,19 +10,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { Search, Plus } from 'lucide-react';
-import type { Proposal } from '@/types';
 
 export default function ProposalsPage() {
   const router = useRouter();
-  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const { data: proposals = [] } = useQuery({
+    queryKey: ['proposals'],
+    queryFn: listProposals,
+  });
   const [search, setSearch] = useState('');
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    const data = await listProposals();
-    if (data) setProposals(data);
-  }
 
   const filtered = proposals.filter((p) =>
     p.proposal_number.toLowerCase().includes(search.toLowerCase())

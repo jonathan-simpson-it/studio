@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { listNotes, createNote } from '@/lib/db/actions/notes';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listNotes, createNote, deleteNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,30 +23,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
 import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { formatDate } from '@/lib/utils';
-import { Search, Plus, Lock, Globe } from 'lucide-react';
+import { Search, Plus, Lock, Globe, MoreHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Note } from '@/types';
 
 export default function NotesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const [notes, setNotes] = useState<Note[]>([]);
+  const { data: session, status } = useSession();
+  const queryClient = useQueryClient();
+  const { data: notes = [] } = useQuery({
+    queryKey: ['notes'],
+    queryFn: listNotes,
+    enabled: status === 'authenticated',
+  });
   const [search, setSearch] = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Note | null>(null);
 
-  useEffect(() => {
-    if (session?.user?.id) load();
-  }, [session]);
-
-  async function load() {
-    if (!session?.user?.id) return;
-
-    const data = await listNotes();
-    if (data) setNotes(data);
+  async function handleDelete(note: Note) {
+    try {
+      await deleteNote(note.id);
+      toast.success('Note deleted');
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete note');
+    }
   }
 
   const filtered = notes.filter((n) => {
@@ -76,7 +91,7 @@ export default function NotesPage() {
                 await createNote({ ...data, author_id: userId } as Record<string, unknown>);
                 toast.success('Note created');
                 setShowNewSheet(false);
-                load();
+                queryClient.invalidateQueries({ queryKey: ['notes'] });
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Failed to create note');
               }
@@ -92,20 +107,42 @@ export default function NotesPage() {
             className="cursor-pointer transition-colors hover:bg-accent/50"
             onClick={() => router.push(`/notes/${n.id}`)}
           >
-            <CardContent className="p-4 space-y-2">
+            <CardContent className="p-4 space-y-2 relative">
               <div className="flex items-start justify-between">
                 <p className="text-sm font-medium">{n.title}</p>
-                {n.visibility === 'private' && <Lock className="h-3 w-3 text-muted-foreground" />}
-                {n.visibility === 'internal' && <Globe className="h-3 w-3 text-muted-foreground" />}
+                <div className="flex items-center gap-1">
+                  {n.visibility === 'private' && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  {n.visibility === 'internal' && <Globe className="h-3 w-3 text-muted-foreground" />}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <MoreHorizontal className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(n)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               {n.body && (
-                <p className="text-xs text-muted-foreground line-clamp-3">{n.body.slice(0, 200)}</p>
+                <MarkdownPreview value={n.body} className="max-h-20 overflow-hidden text-xs text-muted-foreground" />
               )}
               <p className="text-[10px] text-muted-foreground">{formatDate(n.created_at)}</p>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        entityName={deleteTarget?.title || ''}
+        entityType="Note"
+        onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : Promise.resolve()}
+      />
     </div>
   );
 }

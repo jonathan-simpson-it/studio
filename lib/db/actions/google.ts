@@ -43,7 +43,7 @@ export async function toggleGoogleCalendar(id: string, isActive: boolean) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
-  return GoogleCalendarSync.findByIdAndUpdate(id, { is_active: isActive }).lean({ virtuals: true });
+  return toPlain(await GoogleCalendarSync.findByIdAndUpdate(id, { is_active: isActive }).lean({ virtuals: true }));
 }
 
 export async function fetchAndStoreGoogleCalendars() {
@@ -140,7 +140,7 @@ export async function toggleGoogleInbox(id: string, isActive: boolean) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
-  return GoogleInbox.findByIdAndUpdate(id, { is_active: isActive }).lean({ virtuals: true });
+  return toPlain(await GoogleInbox.findByIdAndUpdate(id, { is_active: isActive }).lean({ virtuals: true }));
 }
 
 export async function fetchAndStoreGoogleLabels() {
@@ -241,7 +241,7 @@ export async function markMessageRead(id: string) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
-  return InboxMessage.findByIdAndUpdate(id, { is_read: true }).lean({ virtuals: true });
+  return toPlain(await InboxMessage.findByIdAndUpdate(id, { is_read: true }).lean({ virtuals: true }));
 }
 
 export async function archiveMessage(id: string) {
@@ -249,5 +249,5 @@ export async function archiveMessage(id: string) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
-  return InboxMessage.findByIdAndUpdate(id, { is_archived: true }).lean({ virtuals: true });
+  return toPlain(await InboxMessage.findByIdAndUpdate(id, { is_archived: true }).lean({ virtuals: true }));
 }

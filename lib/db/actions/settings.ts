@@ -34,26 +34,26 @@ export async function registerUser(data: {
     default_hourly_rate: 0,
     created_at: new Date(),
   });
-  return user.toObject({ virtuals: true });
+  return toPlain(user.toObject({ virtuals: true }));
 }
 
 export async function connectGitHubAccount(userId: string, githubId: string, githubUsername: string, avatarUrl: string | null) {
   await connect();
-  return User.findByIdAndUpdate(userId, {
+  return toPlain(await User.findByIdAndUpdate(userId, {
     github_id: githubId,
     github_username: githubUsername,
     avatar_url: avatarUrl,
-  }, { returnDocument: 'after' }).lean({ virtuals: true });
+  }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function getUser(id: string) {
   await connect();
-  return User.findById(id).lean({ virtuals: true });
+  return toPlain(await User.findById(id).lean({ virtuals: true }));
 }
 
 export async function getUserByEmail(email: string) {
   await connect();
-  return User.findOne({ email }).lean({ virtuals: true });
+  return toPlain(await User.findOne({ email }).lean({ virtuals: true }));
 }
 
 export async function createUser(data: {
@@ -73,7 +73,7 @@ export async function createUser(data: {
     default_hourly_rate: 0,
     created_at: new Date(),
   });
-  return user.toObject({ virtuals: true });
+  return toPlain(user.toObject({ virtuals: true }));
 }
 
 export async function updateUserProfile(id: string, data: {
@@ -82,7 +82,7 @@ export async function updateUserProfile(id: string, data: {
   default_hourly_rate?: number;
 }) {
   await connect();
-  return User.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await User.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function getCurrentUser() {
@@ -125,7 +125,7 @@ export async function getAgencySettings() {
 
 export async function updateAgencySettings(id: string, data: Record<string, unknown>) {
   await connect();
-  return AgencySettings.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await AgencySettings.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function getIntegrations() {
@@ -135,16 +135,16 @@ export async function getIntegrations() {
 
 export async function upsertIntegration(service: string, encryptedKey: string, extraConfig: Record<string, unknown> = {}) {
   await connect();
-  return Integration.findOneAndUpdate(
+  return toPlain(await Integration.findOneAndUpdate(
     { service },
     { encrypted_key: encryptedKey, extra_config: extraConfig },
     { upsert: true, returnDocument: 'after' }
-  ).lean({ virtuals: true });
+  ).lean({ virtuals: true }));
 }
 
 export async function getApiKeys() {
   await connect();
-  return ApiKey.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await ApiKey.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function createApiKey(data: {
@@ -156,15 +156,15 @@ export async function createApiKey(data: {
 }) {
   await connect();
   const key = await ApiKey.create(data);
-  return key.toObject({ virtuals: true });
+  return toPlain(key.toObject({ virtuals: true }));
 }
 
 export async function updateApiKey(id: string, data: Partial<IApiKey>) {
   await connect();
-  return ApiKey.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await ApiKey.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteApiKey(id: string) {
   await connect();
-  return ApiKey.findByIdAndDelete(id).lean({ virtuals: true });
+  return toPlain(await ApiKey.findByIdAndDelete(id).lean({ virtuals: true }));
 }

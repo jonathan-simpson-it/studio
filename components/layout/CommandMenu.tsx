@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Users,
@@ -95,6 +95,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="top-[15%] translate-y-0 max-w-lg">
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <div className="space-y-2">
           <div className="flex items-center border-b pb-2">
             <Input

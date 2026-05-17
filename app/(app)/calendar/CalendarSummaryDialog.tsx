@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
 import { Sparkles, Copy, RefreshCw, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types';
@@ -168,8 +169,8 @@ export function CalendarSummaryDialog({
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-sm">
-                {summary}
+              <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                <MarkdownPreview value={summary} />
               </div>
             </div>
           )}

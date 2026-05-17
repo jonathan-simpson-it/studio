@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getNote, updateNote } from '@/lib/db/actions/notes';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getNote, updateNote, deleteNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,33 +15,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import { formatDate } from '@/lib/utils';
-import { ArrowLeft, Lock, Globe } from 'lucide-react';
+import { ArrowLeft, Lock, Globe, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Note } from '@/types';
 
 export default function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const [note, setNote] = useState<Note | null>(null);
+  const queryClient = useQueryClient();
+  const { id } = use(params);
+  const [showDelete, setShowDelete] = useState(false);
 
-  useEffect(() => { load(); }, [params]);
-
-  async function load() {
-    const { id } = await params;
-    const data = await getNote(id);
-    if (data) setNote(data);
-  }
+  const { data: note } = useQuery({
+    queryKey: ['note', id],
+    queryFn: () => getNote(id),
+  });
 
   async function handleSave(field: string, value: unknown) {
     if (!note) return;
     try {
       await updateNote(note.id, { [field]: value } as Record<string, unknown>);
-      setNote({ ...note, [field]: value } as Note);
+      queryClient.setQueryData(['note', id], { ...note, [field]: value } as Note);
       toast.success('Note updated');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
+    }
+  }
+
+  async function handleDelete() {
+    if (!note) return;
+    try {
+      await deleteNote(note.id);
+      toast.success('Note deleted');
+      router.push('/notes');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete note');
     }
   }
 
@@ -48,9 +60,14 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="max-w-3xl space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => router.push('/notes')}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => router.push('/notes')}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
+        <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+          <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </Button>
+      </div>
 
       <div className="flex items-center gap-3">
         <Input
@@ -94,6 +111,14 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
           />
         </CardContent>
       </Card>
+
+      <ConfirmDeleteDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        entityName={note.title}
+        entityType="Note"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

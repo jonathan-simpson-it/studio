@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInvoice, updateInvoice, deleteInvoice } from '@/lib/db/actions/invoices';
 import { listClients } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import { SmartFillButton } from '@/components/shared/SmartFillButton';
+import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
 import { Switch } from '@/components/ui/switch';
 import { formatCurrency } from '@/lib/utils';
 import { sendInvoiceWithEmail, sendProposalWithEmail } from '@/lib/db/actions/email';
@@ -36,8 +38,8 @@ import type { Invoice, Client, LineItem } from '@/types';
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
+  const queryClient = useQueryClient();
+  const { id } = use(params);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [showPaid, setShowPaid] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -47,19 +49,28 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [sendBody, setSendBody] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => { load(); }, [params]);
+  const { data: invoice } = useQuery({
+    queryKey: ['invoice', id],
+    queryFn: () => getInvoice(id),
+  });
 
-  async function load() {
-    const { id } = await params;
-    const inv = await getInvoice(id);
-    if (inv) {
-      setInvoice(inv);
-      setLineItems(inv.line_items as LineItem[] || []);
-      setPaymentNotes(inv.payment_notes || '');
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => listClients(),
+  });
+
+  useEffect(() => {
+    if (invoice) {
+      if (lineItems.length === 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLineItems(invoice.line_items as LineItem[] || []);
+      }
+      if (!paymentNotes) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPaymentNotes(invoice.payment_notes || '');
+      }
     }
-    const cl = await listClients();
-    if (cl) setClients(cl);
-  }
+  }, [invoice]);
 
   function addLineItem() {
     setLineItems([...lineItems, { service: '', description: '', quantity: 1, unit_price: 0, total: 0 }]);
@@ -122,7 +133,8 @@ Thank you for your business.
       if (result.status === 'sent') {
         toast.success('Invoice sent via email');
         setShowSendDialog(false);
-        load();
+        queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
       } else {
         toast.error(`Failed to send: ${result.errorMessage}`);
       }
@@ -139,7 +151,9 @@ Thank you for your business.
       await updateInvoice(invoice.id, { status: 'Paid', paid_at: new Date().toISOString(), payment_notes: paymentNotes } as Record<string, unknown>);
       toast.success('Invoice marked as paid');
       setShowPaid(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to mark paid');
     }
@@ -217,7 +231,9 @@ Thank you for your business.
             <Button variant="outline" onClick={async () => {
               await updateInvoice(invoice.id, { status: 'Cancelled' } as Record<string, unknown>);
               toast.success('Invoice cancelled');
-              load();
+              queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+              queryClient.invalidateQueries({ queryKey: ['invoices'] });
+              queryClient.invalidateQueries({ queryKey: ['finance'] });
             }}>
               Cancel
             </Button>
@@ -276,7 +292,7 @@ Thank you for your business.
 
           <div className="space-y-2">
             <Label>Payment Terms</Label>
-            <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={2} value={invoice.payment_terms || ''} onChange={(e) => handleField('payment_terms', e.target.value)} />
+            <MarkdownEditor value={invoice.payment_terms || ''} onChange={(v) => handleField('payment_terms', v)} minHeight={100} placeholder="Payment terms..." />
           </div>
 
           <div>
@@ -468,7 +484,7 @@ Thank you for your business.
 
   async function handleField(field: string, value: unknown) {
     if (!invoice) return;
-    setInvoice({ ...invoice, [field]: value } as Invoice);
+    queryClient.setQueryData(['invoice', id], { ...invoice, [field]: value } as Invoice);
     await updateInvoice(invoice.id, { [field]: value } as Record<string, unknown>);
   }
 }

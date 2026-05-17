@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listInvoices, processOverdueChecks } from '@/lib/db/actions/invoices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,25 +15,23 @@ import type { Invoice } from '@/types';
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const queryClient = useQueryClient();
+  const { data: invoices = [] } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: listInvoices,
+  });
   const [search, setSearch] = useState('');
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     processOverdueChecks().catch(() => {});
-    load();
   }, []);
-
-  async function load() {
-    const data = await listInvoices();
-    if (data) setInvoices(data);
-  }
 
   async function handleCheckOverdue() {
     setChecking(true);
     try {
       const result = await processOverdueChecks();
-      await load();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
       if (result.overdue > 0 || result.recurring_generated > 0) {
         toast.success(`${result.overdue} overdue, ${result.recurring_generated} recurring generated`);
       } else {

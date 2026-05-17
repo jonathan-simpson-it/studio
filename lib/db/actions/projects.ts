@@ -8,7 +8,7 @@ import { toPlain } from '@/lib/db/to-plain';
 
 export async function listProjects() {
   await connect();
-  return Project.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Project.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getProject(id: string) {
@@ -38,7 +38,7 @@ export async function createProject(data: Record<string, unknown>) {
 
 export async function updateProject(id: string, data: Record<string, unknown>) {
   await connect();
-  return Project.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Project.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteProject(id: string) {
@@ -64,27 +64,27 @@ export async function getProjectStats() {
 
 export async function getActiveProjects() {
   await connect();
-  return Project.find({ status: { $ne: 'Completed' } }).sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Project.find({ status: { $ne: 'Completed' } }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getProjectsForClient(clientId: string) {
   await connect();
-  return Project.find({ client_id: clientId }).sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Project.find({ client_id: clientId }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getProjectRepos() {
   await connect();
-  return ProjectRepo.find().lean({ virtuals: true });
+  return toPlain(await ProjectRepo.find().lean({ virtuals: true }));
 }
 
 export async function getProjectReposByProject(projectId: string) {
   await connect();
-  return ProjectRepo.find({ project_id: projectId }).lean({ virtuals: true });
+  return toPlain(await ProjectRepo.find({ project_id: projectId }).lean({ virtuals: true }));
 }
 
 export async function getSyncedIssuesByProject(projectId: string) {
   await connect();
-  return SyncedGithubIssue.find({ project_id: projectId }).sort({ updated_at_github: -1 }).lean({ virtuals: true });
+  return toPlain(await SyncedGithubIssue.find({ project_id: projectId }).sort({ updated_at_github: -1 }).lean({ virtuals: true }));
 }
 
 export async function getSyncedIssueCounts(projectId: string) {
@@ -99,18 +99,18 @@ export async function getSyncedIssueCounts(projectId: string) {
 // Milestones
 export async function getMilestonesForProject(projectId: string) {
   await connect();
-  return Milestone.find({ project_id: projectId }).sort({ due_date: 1 }).lean({ virtuals: true });
+  return toPlain(await Milestone.find({ project_id: projectId }).sort({ due_date: 1 }).lean({ virtuals: true }));
 }
 
 export async function createMilestone(data: Record<string, unknown>) {
   await connect();
   const milestone = await Milestone.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return milestone.toObject({ virtuals: true });
+  return toPlain(milestone.toObject({ virtuals: true }));
 }
 
 export async function updateMilestone(id: string, data: Record<string, unknown>) {
   await connect();
-  return Milestone.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Milestone.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteMilestone(id: string) {
@@ -121,15 +121,15 @@ export async function deleteMilestone(id: string) {
 export async function getUpcomingMilestones() {
   await connect();
   const now = new Date();
-  return Milestone.find({ due_date: { $gte: now }, status: { $ne: 'Completed' } })
-    .sort({ due_date: 1 }).lean({ virtuals: true });
+  return toPlain(await Milestone.find({ due_date: { $gte: now }, status: { $ne: 'Completed' } })
+    .sort({ due_date: 1 }).lean({ virtuals: true }));
 }
 
 export async function getMilestoneStats() {
   await connect();
   const now = new Date();
-  return Milestone.find({ due_date: { $gte: now }, status: { $ne: 'Completed' } })
-    .sort({ due_date: 1 }).limit(10).lean({ virtuals: true });
+  return toPlain(await Milestone.find({ due_date: { $gte: now }, status: { $ne: 'Completed' } })
+    .sort({ due_date: 1 }).limit(10).lean({ virtuals: true }));
 }
 
 // Tasks
@@ -146,7 +146,7 @@ export async function createTask(data: Record<string, unknown>) {
 
 export async function getUserTasks(userId: string) {
   await connect();
-  return Task.find({ assignee_id: userId, status: { $ne: 'Done' } }).sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Task.find({ assignee_id: userId, status: { $ne: 'Done' } }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getTaskStats() {
@@ -161,12 +161,12 @@ export async function getTaskStats() {
 
 export async function getTasksForProject(projectId: string) {
   await connect();
-  return Task.find({ project_id: projectId }).sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Task.find({ project_id: projectId }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function updateTask(id: string, data: Record<string, unknown>) {
   await connect();
-  return Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteTask(id: string) {

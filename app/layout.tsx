@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/Providers";
+import { QueryProvider } from "@/components/QueryProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -42,17 +43,19 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-background text-foreground">
         <Providers>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: '#18181b',
-                color: '#fafafa',
-                border: '1px solid #27272a',
-              },
-            }}
-          />
-          {children}
+          <QueryProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: '#18181b',
+                  color: '#fafafa',
+                  border: '1px solid #27272a',
+                },
+              }}
+            />
+            {children}
+          </QueryProvider>
         </Providers>
       </body>
     </html>

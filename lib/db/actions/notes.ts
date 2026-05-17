@@ -6,7 +6,7 @@ import { toPlain } from '@/lib/db/to-plain';
 
 export async function listNotes() {
   await connect();
-  return Note.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Note.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getNote(id: string) {
@@ -17,17 +17,17 @@ export async function getNote(id: string) {
 export async function createNote(data: Record<string, unknown>) {
   await connect();
   const note = await Note.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return note.toObject({ virtuals: true });
+  return toPlain(note.toObject({ virtuals: true }));
 }
 
 export async function updateNote(id: string, data: Record<string, unknown>) {
   await connect();
-  return Note.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Note.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteNote(id: string) {
   await connect();
-  return Note.findByIdAndDelete(id);
+  return toPlain(await Note.findByIdAndDelete(id));
 }
 
 export async function getNotesForEntity(
@@ -36,5 +36,5 @@ export async function getNotesForEntity(
 ) {
   const field = entityType === 'project' ? 'project_id' : 'client_id';
   await connect();
-  return Note.find({ [field]: entityId }).sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Note.find({ [field]: entityId }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }

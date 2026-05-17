@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProposal, updateProposal, createInvoice, getInvoiceNumber, deleteProposal } from '@/lib/db/actions/invoices';
 import { listClients } from '@/lib/db/actions/clients';
 import { createProject } from '@/lib/db/actions/projects';
@@ -39,28 +40,32 @@ import type { Proposal, Client, LineItem } from '@/types';
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const queryClient = useQueryClient();
+  const { id } = use(params);
   const [showAccept, setShowAccept] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [sendSubject, setSendSubject] = useState('');
   const [sendBody, setSendBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
-  useEffect(() => { load(); }, [params]);
+  const { data: proposal } = useQuery({
+    queryKey: ['proposal', id],
+    queryFn: () => getProposal(id),
+  });
 
-  async function load() {
-    const { id } = await params;
-    const p = await getProposal(id);
-    if (p) {
-      setProposal(p);
-      setLineItems(p.line_items as LineItem[] || []);
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => listClients(),
+  });
+
+  useEffect(() => {
+    if (proposal && lineItems.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLineItems(proposal.line_items as LineItem[] || []);
     }
-    const cl = await listClients();
-    if (cl) setClients(cl);
-  }
+  }, [proposal]);
 
   function addLineItem() {
     setLineItems([...lineItems, { service: '', description: '', quantity: 1, unit_price: 0, total: 0 }]);
@@ -119,7 +124,7 @@ We look forward to the opportunity to work with you.
       if (result.status === 'sent') {
         toast.success('Proposal sent via email');
         setShowSendDialog(false);
-        load();
+        queryClient.invalidateQueries({ queryKey: ['proposal', id] });
       } else {
         toast.error(`Failed to send: ${result.errorMessage}`);
       }
@@ -164,7 +169,9 @@ We look forward to the opportunity to work with you.
 
       toast.success('Proposal accepted. Invoice draft created.');
       setShowAccept(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['proposal', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to accept');
     }
@@ -242,7 +249,8 @@ We look forward to the opportunity to work with you.
             <Button variant="outline" onClick={async () => {
               await updateProposal(proposal.id, { status: 'Rejected' } as Record<string, unknown>);
               toast.success('Proposal rejected');
-              load();
+              queryClient.invalidateQueries({ queryKey: ['proposal', id] });
+              queryClient.invalidateQueries({ queryKey: ['proposals'] });
             }}>
               <X className="mr-2 h-4 w-4" /> Reject
             </Button>
@@ -456,7 +464,7 @@ We look forward to the opportunity to work with you.
 
   async function handleField(field: string, value: unknown) {
     if (!proposal) return;
-    setProposal({ ...proposal, [field]: value } as Proposal);
+    queryClient.setQueryData(['proposal', id], { ...proposal, [field]: value } as Proposal);
     await updateProposal(proposal.id, { [field]: value } as Record<string, unknown>);
   }
 }

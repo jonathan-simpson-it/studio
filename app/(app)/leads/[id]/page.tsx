@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getLeadDetail, createActivityLog } from '@/lib/db/actions/details';
 import { updateLead, updateLeadStage, deleteLead } from '@/lib/db/actions/leads';
 import { createClient as createDbClient, getClient } from '@/lib/db/actions/clients';
@@ -41,31 +42,27 @@ import type { Lead, Proposal, ActivityLog } from '@/types';
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const [lead, setLead] = useState<Lead | null>(null);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
-  const [proposal, setProposal] = useState<Proposal | null>(null);
+  const queryClient = useQueryClient();
+  const { id } = use(params);
   const [showConvert, setShowConvert] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [convertProjectName, setConvertProjectName] = useState('');
   const [convertBillingType, setConvertBillingType] = useState('One-off');
 
+  const { data: lead } = useQuery({
+    queryKey: ['lead', id],
+    queryFn: () => getLeadDetail(id),
+  });
+
+  const activities = lead?.activity ?? [];
+  const proposal = lead?.proposals?.[0] ?? null;
+
   useEffect(() => {
-    load();
-  }, [params]);
-
-  async function load() {
-    const { id } = await params;
-
-    const detail = await getLeadDetail(id);
-    if (detail) {
-      setLead(detail);
-      setConvertProjectName(`${detail.company_name} — Project`);
-
-      if (detail.proposals?.[0]) setProposal(detail.proposals[0]);
+    if (lead) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConvertProjectName(`${lead.company_name} — Project`);
     }
-
-    if (detail?.activity) setActivities(detail.activity);
-  }
+  }, [lead]);
 
   async function handleSave(field: string, value: unknown) {
     if (!lead) return;
@@ -88,7 +85,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       }
     }
 
-    setLead({ ...lead, ...updates } as Lead);
+    queryClient.setQueryData(['lead', id], { ...lead, ...updates } as Lead);
     toast.success('Lead updated');
   }
 
@@ -140,7 +137,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       toast.success('Lead converted to client');
       setShowConvert(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['lead', id] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Conversion failed');
     }

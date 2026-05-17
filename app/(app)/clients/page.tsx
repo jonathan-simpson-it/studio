@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listClients, createClient } from '@/lib/db/actions/clients';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listClients, createClient, deleteClient } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +24,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import {
   Search,
   Plus,
   SwitchCamera,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -33,26 +43,36 @@ import type { Client } from '@/types';
 
 export default function ClientsPage() {
   const router = useRouter();
-  const [clients, setClients] = useState<(Client & { active_projects?: number; total_revenue?: number; outstanding?: number })[]>([]);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showInternal, setShowInternal] = useState(false);
   const [showNewSheet, setShowNewSheet] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
 
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    const data = await listClients(showInternal);
-    if (data) setClients(data);
-  }
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients', showInternal],
+    queryFn: () => listClients(showInternal),
+  });
 
   async function handleCreate(data: Partial<Client>) {
     try {
       await createClient(data as Record<string, unknown>);
       toast.success('Client created');
       setShowNewSheet(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create client');
+    }
+  }
+
+  async function handleDelete(client: Client) {
+    try {
+      await deleteClient(client.id);
+      toast.success('Client deleted');
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete client');
     }
   }
 
@@ -78,7 +98,7 @@ export default function ClientsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setShowInternal(!showInternal); load(); }}
+            onClick={() => setShowInternal(!showInternal)}
           >
             <SwitchCamera className="mr-2 h-4 w-4" />
             {showInternal ? 'Hide Internal' : 'Show Internal'}
@@ -108,6 +128,7 @@ export default function ClientsPage() {
                 <th className="px-4 py-3 font-medium">Outstanding</th>
                 <th className="px-4 py-3 font-medium">Services</th>
                 <th className="px-4 py-3 font-medium">Since</th>
+                <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -131,18 +152,40 @@ export default function ClientsPage() {
                   <td className="px-4 py-3">{formatCurrency(c.outstanding || 0, c.currency_preference)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      {c.services?.slice(0, 2).map((s) => (
+                      {c.services?.slice(0, 2).map((s: string) => (
                         <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
                       ))}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </CardContent>
       </Card>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        entityName={deleteTarget?.company_name || ''}
+        entityType="Client"
+        onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : Promise.resolve()}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -44,11 +44,11 @@ const navItemsSecondary = [
 
 export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
   const pathname = usePathname();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    getInboxStats().then((stats) => setUnreadCount(stats.unread)).catch(() => {});
-  }, []);
+  const { data: stats } = useQuery({
+    queryKey: ['inbox-stats'],
+    queryFn: getInboxStats,
+  });
+  const unreadCount = stats?.unread ?? 0;
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-60 flex-col border-r bg-background">

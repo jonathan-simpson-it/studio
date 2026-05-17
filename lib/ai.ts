@@ -52,7 +52,8 @@ export { resolveModelKey };
 const SYSTEM_PROMPTS: Record<string, string> = {
   'draft-email': `You are a client communications specialist for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
 Draft a professional email. Include a subject line, greeting, body, and professional signature.
-Tone: professional, direct, modern.`,
+Tone: professional, direct, modern.
+Output plain text only. Do not use markdown formatting.`,
 
   'generate-proposal': `You are a proposal writer for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
 Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.
@@ -64,7 +65,7 @@ Generate invoice line items (service, description, quantity, unit_price, total) 
 Tone: professional, direct, modern.`,
 
   'generate-project-summary': `You are a project manager for Jonathon Simpson & Co.
-Generate a concise markdown project summary covering: status, key accomplishments, next steps, and any blockers.
+Generate a concise project summary covering: status, key accomplishments, next steps, and any blockers.
 Tone: professional, direct, modern.`,
 
   'generate-monthly-report': `You are a reporting analyst for Jonathon Simpson & Co.
@@ -85,11 +86,13 @@ Tone: professional, direct, modern.`,
 
   'generate-follow-up-email': `You are a client communications specialist for Jonathon Simpson & Co.
 Write a short follow-up email referencing the previous conversation or proposal. Keep to 3–5 sentences. Professional and friendly.
-Tone: professional, direct, modern.`,
+Tone: professional, direct, modern.
+Output plain text only. Do not use markdown formatting.`,
 
   'generate-multilingual-email': `You are a multilingual communications specialist for Jonathon Simpson & Co.
 Translate the given email content into the requested language with cultural appropriateness. Maintain the professional tone of the original.
-Tone: professional, direct, modern.`,
+Tone: professional, direct, modern.
+Output plain text only. Do not use markdown formatting.`,
 
   'autofill-note': `You are an assistant for Jonathon Simpson & Co.
 Summarise the given context into concise markdown notes with bullet points. Capture key facts, decisions, and action items.
@@ -109,7 +112,7 @@ Return ONLY valid JSON with these fields:
 - endTime (string, HH:mm): end time
 - rrule (string or null): RRULE string for recurrence, e.g. "FREQ=WEEKLY;BYDAY=MO,WE"
 - location (string or null): venue or address
-- description (string or null): any extra notes
+- description (string or null): any extra notes (plain text, no markdown)
 If the input mentions "every day/week/month" include an rrule.
 Timezone is Asia/Hong_Kong. Default meeting duration is 1 hour if not specified.`,
 
@@ -145,7 +148,8 @@ Return ONLY valid JSON with these fields:
 - greeting (string or null): opening greeting e.g. "Hi John"
 - body (string or null): email body content
 - cta (string or null): call to action or next steps
-Tone: professional, direct, modern.`,
+Tone: professional, direct, modern.
+Return plain text only. Do not use markdown formatting in any field.`,
 
   'parse-proposal': `You are a proposal writer for Jonathon Simpson & Co., a Hong Kong-based software and automation agency.
 Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.

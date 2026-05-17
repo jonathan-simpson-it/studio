@@ -70,13 +70,13 @@ export async function createActivityLog(data: {
     meta: data.meta || {},
     created_at: new Date(),
   });
-  return log.toObject({ virtuals: true });
+  return toPlain(log.toObject({ virtuals: true }));
 }
 
 export async function getActivityForEntity(entityId: string) {
   await connect();
-  return ActivityLog.find({ entity_id: entityId })
-    .sort({ created_at: -1 }).limit(20).lean({ virtuals: true });
+  return toPlain(await ActivityLog.find({ entity_id: entityId })
+    .sort({ created_at: -1 }).limit(20).lean({ virtuals: true }));
 }
 
 export async function getRecentActivity() {
@@ -89,8 +89,8 @@ export async function getRecentActivity() {
     .select('full_name').lean({ virtuals: true });
   const userMap = new Map(users.map((u: any) => [u._id.toString(), u.full_name]));
 
-  return entries.map((e: any) => ({
+  return toPlain(entries.map((e: any) => ({
     ...e,
     actor: { full_name: userMap.get(e.actor_id?.toString()) || null },
-  }));
+  })));
 }

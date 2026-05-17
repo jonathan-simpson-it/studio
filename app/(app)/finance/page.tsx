@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listFinanceData, createCost } from '@/lib/db/actions/finance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,21 +37,15 @@ import type { Invoice, Cost, Client } from '@/types';
 
 export default function FinancePage() {
   const { data: session } = useSession();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [costs, setCosts] = useState<Cost[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const queryClient = useQueryClient();
+  const { data: financeData } = useQuery({
+    queryKey: ['finance'],
+    queryFn: listFinanceData,
+  });
+  const invoices = financeData?.invoices ?? [];
+  const costs = financeData?.costs ?? [];
+  const clients = financeData?.clients ?? [];
   const [showCostSheet, setShowCostSheet] = useState(false);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    const data = await listFinanceData();
-    if (data) {
-      setInvoices(data.invoices);
-      setCosts(data.costs);
-      setClients(data.clients);
-    }
-  }
 
   const paidInvoices = invoices.filter((i) => i.status === 'Paid');
   const outstandingInvoices = invoices.filter((i) => ['Sent', 'Overdue'].includes(i.status));
@@ -192,7 +187,7 @@ export default function FinancePage() {
                     await createCost({ ...data, created_by: userId } as Record<string, unknown>);
                     toast.success('Cost added');
                     setShowCostSheet(false);
-                    load();
+                    queryClient.invalidateQueries({ queryKey: ['finance'] });
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : 'Failed to add cost');
                   }

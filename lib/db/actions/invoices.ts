@@ -8,7 +8,7 @@ import { toPlain } from '@/lib/db/to-plain';
 
 export async function listProposals() {
   await connect();
-  return Proposal.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Proposal.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getProposal(id: string) {
@@ -28,12 +28,12 @@ export async function getProposal(id: string) {
 export async function createProposal(data: Record<string, unknown>) {
   await connect();
   const proposal = await Proposal.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return proposal.toObject({ virtuals: true });
+  return toPlain(proposal.toObject({ virtuals: true }));
 }
 
 export async function updateProposal(id: string, data: Record<string, unknown>) {
   await connect();
-  return Proposal.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Proposal.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteProposal(id: string) {
@@ -55,7 +55,7 @@ export async function getProposalNumber(): Promise<string> {
 
 export async function listInvoices() {
   await connect();
-  return Invoice.find().sort({ created_at: -1 }).lean({ virtuals: true });
+  return toPlain(await Invoice.find().sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getInvoice(id: string) {
@@ -70,12 +70,12 @@ export async function getInvoice(id: string) {
 export async function createInvoice(data: Record<string, unknown>) {
   await connect();
   const invoice = await Invoice.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return invoice.toObject({ virtuals: true });
+  return toPlain(invoice.toObject({ virtuals: true }));
 }
 
 export async function updateInvoice(id: string, data: Record<string, unknown>) {
   await connect();
-  return Invoice.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Invoice.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteInvoice(id: string) {
@@ -100,14 +100,14 @@ export async function getInvoicesForClient(clientId: string) {
   const invoices = await Invoice.find({ client_id: clientId }).lean({ virtuals: true });
   const paid = invoices.filter((i: any) => i.status === 'Paid').reduce((s: number, i: any) => s + i.total, 0);
   const outstanding = invoices.filter((i: any) => ['Sent', 'Overdue'].includes(i.status)).reduce((s: number, i: any) => s + i.total, 0);
-  return { invoices, paid, outstanding };
+  return toPlain({ invoices, paid, outstanding });
 }
 
 export async function getOutstandingInvoices() {
   await connect();
   const invoices = await Invoice.find({ status: { $in: ['Sent', 'Overdue'] } }).lean({ virtuals: true });
   const total = invoices.reduce((s: number, i: any) => s + i.total, 0);
-  return { invoices, total };
+  return toPlain({ invoices, total });
 }
 
 export async function markInvoicesOverdue() {
@@ -123,7 +123,7 @@ export async function markInvoicesOverdue() {
 export async function getRecurringInvoicesDueToday() {
   await connect();
   const today = new Date().toISOString().split('T')[0];
-  return Invoice.find({ is_recurring: true, next_issue_date: new Date(today) }).lean({ virtuals: true });
+  return toPlain(await Invoice.find({ is_recurring: true, next_issue_date: new Date(today) }).lean({ virtuals: true }));
 }
 
 export async function processOverdueChecks() {

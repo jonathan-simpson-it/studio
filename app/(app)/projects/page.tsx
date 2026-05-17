@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listProjects, createProject } from '@/lib/db/actions/projects';
-import { listClients, getClientCount } from '@/lib/db/actions/clients';
+import { listClients } from '@/lib/db/actions/clients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,37 +35,34 @@ import type { Project, Client } from '@/types';
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<(Project & { client_name?: string; repo_count?: number; issue_count?: number })[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const queryClient = useQueryClient();
+  const { data: rawProjects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: listProjects,
+  });
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => listClients(),
+  });
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [filterOwner, setFilterOwner] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
 
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    const projs = await listProjects();
-    const clts = await listClients();
-    if (clts) setClients(clts);
-
-    if (!projs) return;
-
-    const enriched = await Promise.all(
-      projs.map(async (p) => {
-        const client = clts?.find((c) => c.id === p.client_id);
+  const projects = useMemo(
+    () =>
+      rawProjects.map((p) => {
+        const client = clients.find((c) => c.id === p.client_id);
         return {
           ...p,
           client_name: client?.is_internal ? 'Internal — JSCo' : client?.company_name || 'Unknown',
           repo_count: 0,
           issue_count: 0,
         };
-      })
-    );
-
-    setProjects(enriched);
-  }
+      }),
+    [rawProjects, clients]
+  );
 
   const filtered = projects.filter((p) => {
     if (filterStatus && filterStatus !== '_all' && p.status !== filterStatus) return false;
@@ -111,7 +109,7 @@ export default function ProjectsPage() {
                 await createProject(data as Record<string, unknown>);
                 toast.success('Project created');
                 setShowNewSheet(false);
-                load();
+                queryClient.invalidateQueries({ queryKey: ['projects'] });
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Failed to create project');
               }

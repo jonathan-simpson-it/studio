@@ -29,6 +29,7 @@ export async function listClients(showInternal = false) {
 
       return {
         ...c,
+        id: c._id.toString(),
         active_projects: activeProjects,
         total_revenue: paid,
         outstanding,
@@ -41,7 +42,7 @@ export async function listClients(showInternal = false) {
 
 export async function getClient(id: string) {
   await connect();
-  return Client.findById(id).lean({ virtuals: true });
+  return toPlain(await Client.findById(id).lean({ virtuals: true }));
 }
 
 export async function createClient(data: Record<string, unknown>) {
@@ -52,7 +53,7 @@ export async function createClient(data: Record<string, unknown>) {
 
 export async function updateClient(id: string, data: Record<string, unknown>) {
   await connect();
-  return Client.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Client.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteClient(id: string) {

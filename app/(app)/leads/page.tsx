@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { listLeads, createLead, updateLeadStage, getLeadsWithHeatScores } from '@/lib/db/actions/leads';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listLeads, createLead, updateLeadStage, getLeadsWithHeatScores, deleteLead } from '@/lib/db/actions/leads';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,12 +25,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import {
   LayoutGrid,
   Table2,
   Plus,
   Search,
   GripVertical,
   User,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { HeatScore } from '@/components/shared/HeatScore';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -42,29 +52,25 @@ const stages = ['New', 'Contacted', 'Discovery', 'Proposal Sent', 'Negotiation',
 
 export default function LeadsPage() {
   const router = useRouter();
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [proposalsMap, setProposalsMap] = useState<Record<string, Proposal | null>>({});
+  const queryClient = useQueryClient();
+  const { data: leads = [] } = useQuery({
+    queryKey: ['leads'],
+    queryFn: getLeadsWithHeatScores,
+  });
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const [search, setSearch] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
 
-  useEffect(() => {
-    loadLeads();
-  }, []);
-
-  async function loadLeads() {
-    const data = await getLeadsWithHeatScores();
-    if (data) {
-      setLeads(data);
-      const pmap: Record<string, Proposal | null> = {};
-      for (const lead of data) {
-        if (lead.stage === 'Proposal Sent') {
-          pmap[lead.id] = null;
-        }
+  const proposalsMap = useMemo(() => {
+    const pmap: Record<string, Proposal | null> = {};
+    for (const lead of leads) {
+      if (lead.stage === 'Proposal Sent') {
+        pmap[lead.id] = null;
       }
-      setProposalsMap(pmap);
     }
-  }
+    return pmap;
+  }, [leads]);
 
   async function handleStageChange(leadId: string, newStage: string) {
     try {
@@ -74,10 +80,23 @@ export default function LeadsPage() {
       return;
     }
 
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, stage: newStage as Lead['stage'], stage_changed_at: new Date().toISOString() } : l))
+    queryClient.setQueryData<Lead[]>(['leads'], (prev) =>
+      (prev ?? []).map((l) =>
+        l.id === leadId ? { ...l, stage: newStage as Lead['stage'], stage_changed_at: new Date().toISOString() } : l
+      )
     );
     toast.success('Lead stage updated');
+  }
+
+  async function handleDelete(lead: Lead) {
+    try {
+      await deleteLead(lead.id);
+      toast.success('Lead deleted');
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete lead');
+    }
   }
 
   const filtered = leads.filter(
@@ -141,7 +160,7 @@ export default function LeadsPage() {
                   await createLead(data as Record<string, unknown>);
                   toast.success('Lead created');
                   setShowNewSheet(false);
-                  loadLeads();
+                  queryClient.invalidateQueries({ queryKey: ['leads'] });
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : 'Failed to create lead');
                 }
@@ -176,7 +195,21 @@ export default function LeadsPage() {
                             <p className="text-sm font-medium">{lead.company_name}</p>
                             <p className="text-xs text-muted-foreground">{lead.contact_name}</p>
                           </div>
-                          <HeatScore score={heatScore} />
+                          <div className="flex items-center gap-1">
+                            <HeatScore score={heatScore} />
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <MoreHorizontal className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(lead)}>
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>
@@ -210,6 +243,7 @@ export default function LeadsPage() {
                   <th className="px-4 py-3 font-medium">Stage</th>
                   <th className="px-4 py-3 font-medium">Heat</th>
                   <th className="px-4 py-3 font-medium">Source</th>
+                  <th className="px-4 py-3 w-10"></th>
                   <th className="px-4 py-3 font-medium">Last Contact</th>
                   <th className="px-4 py-3 font-medium">Next Action</th>
                 </tr>
@@ -237,6 +271,20 @@ export default function LeadsPage() {
                       {lead.last_contacted_at ? formatDate(lead.last_contacted_at) : '—'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{lead.next_action || '—'}</td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(lead)}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -244,6 +292,14 @@ export default function LeadsPage() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        entityName={deleteTarget?.company_name || ''}
+        entityType="Lead"
+        onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : Promise.resolve()}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signIn } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentUser, updateUserProfile, getAgencySettings, updateAgencySettings, getIntegrations, upsertIntegration } from '@/lib/db/actions/settings';
 import { getGoogleCalendars, toggleGoogleCalendar, fetchAndStoreGoogleCalendars, getGoogleInboxes, toggleGoogleInbox, fetchAndStoreGoogleLabels } from '@/lib/db/actions/google';
 import { Button } from '@/components/ui/button';
@@ -57,70 +58,80 @@ const TIMEZONES = [
 
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const [user, setUser] = useState<any>(null);
-  const [settings, setSettings] = useState<any>(null);
+  const queryClient = useQueryClient();
   const [profileForm, setProfileForm] = useState({ full_name: '', timezone: 'Asia/Hong_Kong', default_hourly_rate: '0' });
   const [agencyForm, setAgencyForm] = useState({ agency_name: 'Jonathon Simpson & Co.', agency_address: '', default_currency: 'HKD' });
-  const [integrations, setIntegrations] = useState<Record<string, any>>({});
   const [templateForm, setTemplateForm] = useState({ invoice_default_terms: '', proposal_default_terms: '', proposal_default_scope_template: '' });
-  const [modelMap, setModelMap] = useState<Record<string, { modelKey: string; modelName: string }>>({});
-  const [modelLatencies, setModelLatencies] = useState<Record<string, number | null>>({});
   const [testingModel, setTestingModel] = useState<string | null>(null);
-  const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
   const [newKeyForm, setNewKeyForm] = useState({ name: '', scope: 'write' });
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
-
-  const [googleCalendars, setGoogleCalendars] = useState<any[]>([]);
-  const [googleInboxes, setGoogleInboxes] = useState<any[]>([]);
   const [fetchingCalendars, setFetchingCalendars] = useState(false);
   const [fetchingInboxes, setFetchingInboxes] = useState(false);
+  const [modelLatencies, setModelLatencies] = useState<Record<string, number | null>>({});
+
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: getCurrentUser,
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['agency-settings'],
+    queryFn: getAgencySettings,
+  });
+
+  const { data: integrations } = useQuery({
+    queryKey: ['integrations'],
+    queryFn: async () => {
+      const data = await getIntegrations();
+      if (!data) return {};
+      const map: Record<string, any> = {};
+      data.forEach((i: any) => { map[i.service] = i; });
+      return map;
+    },
+    initialData: {},
+  });
+
+  const { data: modelMap = {} as Record<string, { modelKey: string; modelName: string }> } = useQuery<Record<string, { modelKey: string; modelName: string }>>({
+    queryKey: ['ai-models'],
+    queryFn: () => fetch('/api/ai/models').then((r) => r.json()).then((data) => data.actions || {}),
+  });
+
+  const { data: apiKeys = [] } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: () => fetch('/api/keys').then((r) => r.json()).then((data) => Array.isArray(data) ? data : []),
+  });
+
+  const { data: googleCalendars = [] } = useQuery({
+    queryKey: ['google-calendars'],
+    queryFn: getGoogleCalendars,
+    enabled: !!user?.google_id,
+  });
+
+  const { data: googleInboxes = [] } = useQuery({
+    queryKey: ['google-inboxes'],
+    queryFn: getGoogleInboxes,
+    enabled: !!user?.google_id,
+  });
 
   useEffect(() => {
-    getCurrentUser().then((data) => {
-      if (data) {
-        setUser(data);
-        setProfileForm({
-          full_name: data.full_name || session?.user?.name || '',
-          timezone: data.timezone || 'Asia/Hong_Kong',
-          default_hourly_rate: data.default_hourly_rate?.toString() || '0',
-        });
-      }
-    });
-
-    getAgencySettings().then((data) => {
-      if (data) {
-        setSettings(data);
-        setAgencyForm({ agency_name: data.agency_name, agency_address: data.agency_address, default_currency: data.default_currency });
-        setTemplateForm({ invoice_default_terms: data.invoice_default_terms, proposal_default_terms: data.proposal_default_terms, proposal_default_scope_template: data.proposal_default_scope_template });
-      }
-    });
-
-    getIntegrations().then((data) => {
-      if (data) {
-        const map: Record<string, any> = {};
-        data.forEach((i: any) => { map[i.service] = i; });
-        setIntegrations(map);
-      }
-    });
-
-    fetch('/api/ai/models').then((r) => r.json()).then((data) => {
-      if (data.actions) setModelMap(data.actions);
-    }).catch(() => {});
-
-    fetch('/api/keys').then((r) => r.json()).then((data) => {
-      if (Array.isArray(data)) setApiKeys(data);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (user?.google_id) {
-      getGoogleCalendars().then(setGoogleCalendars).catch(() => {});
-      getGoogleInboxes().then(setGoogleInboxes).catch(() => {});
+    if (user) {
+      setProfileForm({
+        full_name: user.full_name || session?.user?.name || '',
+        timezone: user.timezone || 'Asia/Hong_Kong',
+        default_hourly_rate: user.default_hourly_rate?.toString() || '0',
+      });
     }
-  }, [user?.google_id]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (settings) {
+      setAgencyForm({ agency_name: settings.agency_name, agency_address: settings.agency_address, default_currency: settings.default_currency });
+      setTemplateForm({ invoice_default_terms: settings.invoice_default_terms, proposal_default_terms: settings.proposal_default_terms, proposal_default_scope_template: settings.proposal_default_scope_template });
+    }
+  }, [settings?.id]);
 
   async function testModel(modelKey: string) {
     setTestingModel(modelKey);
@@ -147,12 +158,9 @@ export default function SettingsPage() {
   async function updateProfile() {
     if (!user) return;
     try {
-      await updateUserProfile(user.id, {
-        full_name: profileForm.full_name,
-        timezone: profileForm.timezone,
-        default_hourly_rate: parseFloat(profileForm.default_hourly_rate),
-      });
+      await updateUserProfile(user.id, { full_name: profileForm.full_name, timezone: profileForm.timezone, default_hourly_rate: parseFloat(profileForm.default_hourly_rate) || 0 } as Record<string, unknown>);
       toast.success('Profile updated');
+      queryClient.invalidateQueries({ queryKey: ['user'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update profile');
     }
@@ -161,20 +169,19 @@ export default function SettingsPage() {
   async function updateAgency() {
     if (!settings) return;
     try {
-      await updateAgencySettings(settings.id, agencyForm);
+      await updateAgencySettings(settings.id, agencyForm as Record<string, unknown>);
       toast.success('Agency settings updated');
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
     }
   }
 
   async function updateIntegration(service: string, key: string, orgName?: string) {
-    const encrypted = btoa(key);
     try {
-      const extraConfig: Record<string, unknown> = {};
-      if (service === 'github' && orgName) extraConfig.org = orgName;
-      await upsertIntegration(service, encrypted, extraConfig);
-      toast.success(`${service} key saved`);
+      await upsertIntegration(service, key, orgName ? { org_name: orgName } as Record<string, unknown> : undefined);
+      toast.success(`${service} integration saved`);
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save');
     }
@@ -183,12 +190,14 @@ export default function SettingsPage() {
   async function updateTemplates() {
     if (!settings) return;
     try {
-      await updateAgencySettings(settings.id, templateForm);
+      await updateAgencySettings(settings.id, templateForm as Record<string, unknown>);
       toast.success('Templates updated');
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update');
+      toast.error(err instanceof Error ? err.message : 'Failed to update templates');
     }
   }
+
 
   async function generateKey() {
     if (!newKeyForm.name.trim()) return;
@@ -202,9 +211,9 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.raw_key) {
         setGeneratedKey(data.raw_key);
-        setApiKeys((prev) => [data, ...prev]);
         setNewKeyForm({ name: '', scope: 'write' });
         setShowNewKeyDialog(false);
+        queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       } else {
         toast.error(data.error || 'Failed to create key');
       }
@@ -222,7 +231,9 @@ export default function SettingsPage() {
       body: JSON.stringify({ id, is_active }),
     });
     if (res.ok) {
-      setApiKeys((prev) => prev.map((k) => (k.id === id ? { ...k, is_active } : k)));
+      queryClient.setQueryData(['api-keys'], (prev: any[]) =>
+        (prev ?? []).map((k: any) => (k.id === id ? { ...k, is_active } : k))
+      );
       toast.success(is_active ? 'Key activated' : 'Key deactivated');
     } else {
       const data = await res.json();
@@ -233,7 +244,9 @@ export default function SettingsPage() {
   async function deleteKey(id: string) {
     const res = await fetch(`/api/keys?id=${id}`, { method: 'DELETE' });
     if (res.ok) {
-      setApiKeys((prev) => prev.filter((k) => k.id !== id));
+      queryClient.setQueryData(['api-keys'], (prev: any[]) =>
+        (prev ?? []).filter((k: any) => k.id !== id)
+      );
       toast.success('Key deleted');
     } else {
       const data = await res.json();
@@ -327,7 +340,7 @@ export default function SettingsPage() {
                         if (confirm('Disconnect GitHub?')) {
                           const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
                           if (res.ok) {
-                            setUser((prev: any) => ({ ...prev, github_id: null, github_username: null }));
+                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
                             toast.success('GitHub disconnected');
                           } else {
                             toast.error('Failed to disconnect');
@@ -371,9 +384,9 @@ export default function SettingsPage() {
                         if (confirm('Disconnect Google? This will remove all synced calendars and inboxes.')) {
                           const res = await fetch('/api/auth/disconnect-google', { method: 'POST' });
                           if (res.ok) {
-                            setUser((prev: any) => ({ ...prev, google_id: null, google_email: null }));
-                            setGoogleCalendars([]);
-                            setGoogleInboxes([]);
+                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, google_id: null, google_email: null }));
+                            queryClient.setQueryData(['google-calendars'], []);
+                            queryClient.setQueryData(['google-inboxes'], []);
                             toast.success('Google disconnected');
                           } else {
                             toast.error('Failed to disconnect');
@@ -402,8 +415,7 @@ export default function SettingsPage() {
                             setFetchingCalendars(true);
                             try {
                               await fetchAndStoreGoogleCalendars();
-                              const cals = await getGoogleCalendars();
-                              setGoogleCalendars(cals);
+                              queryClient.invalidateQueries({ queryKey: ['google-calendars'] });
                               toast.success('Calendars fetched');
                             } catch (err) {
                               toast.error(err instanceof Error ? err.message : 'Failed to fetch');
@@ -430,7 +442,9 @@ export default function SettingsPage() {
                                 checked={cal.is_active}
                                 onCheckedChange={async (checked) => {
                                   await toggleGoogleCalendar(cal._id, checked);
-                                  setGoogleCalendars((prev) => prev.map((c: any) => c._id === cal._id ? { ...c, is_active: checked } : c));
+                                  queryClient.setQueryData(['google-calendars'], (prev: any[]) =>
+                                    (prev ?? []).map((c: any) => c._id === cal._id ? { ...c, is_active: checked } : c)
+                                  );
                                 }}
                               />
                             </div>
@@ -451,8 +465,7 @@ export default function SettingsPage() {
                             setFetchingInboxes(true);
                             try {
                               await fetchAndStoreGoogleLabels();
-                              const inboxes = await getGoogleInboxes();
-                              setGoogleInboxes(inboxes);
+                              queryClient.invalidateQueries({ queryKey: ['google-inboxes'] });
                               toast.success('Labels fetched');
                             } catch (err) {
                               toast.error(err instanceof Error ? err.message : 'Failed to fetch');
@@ -476,7 +489,9 @@ export default function SettingsPage() {
                                 checked={inbox.is_active}
                                 onCheckedChange={async (checked) => {
                                   await toggleGoogleInbox(inbox._id, checked);
-                                  setGoogleInboxes((prev) => prev.map((i: any) => i._id === inbox._id ? { ...i, is_active: checked } : i));
+                                  queryClient.setQueryData(['google-inboxes'], (prev: any[]) =>
+                                    (prev ?? []).map((i: any) => i._id === inbox._id ? { ...i, is_active: checked } : i)
+                                  );
                                 }}
                               />
                             </div>
@@ -542,7 +557,7 @@ export default function SettingsPage() {
                         if (confirm('Disconnect GitHub from your account? You will need to reconnect to log in with GitHub.')) {
                           const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
                           if (res.ok) {
-                            setUser((prev: any) => ({ ...prev, github_id: null, github_username: null }));
+                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
                             toast.success('GitHub disconnected');
                           } else {
                             toast.error('Failed to disconnect GitHub');
@@ -596,7 +611,7 @@ export default function SettingsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(modelMap).map(([action, config]) => (
+                    {Object.entries(modelMap as Record<string, { modelKey: string; modelName: string }>).map(([action, config]) => (
                       <tr key={action} className="border-b text-sm">
                         <td className="px-4 py-3 capitalize">
                           {action.replace(/-/g, ' ')}

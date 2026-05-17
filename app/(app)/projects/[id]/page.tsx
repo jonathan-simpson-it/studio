@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProject, createTask, createMilestone, updateProject, deleteProject, updateMilestone, deleteMilestone, updateTask, deleteTask } from '@/lib/db/actions/projects';
 import { createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SmartFillButton } from '@/components/shared/SmartFillButton';
+import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +30,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import {
@@ -58,17 +62,8 @@ import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRec
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const [project, setProject] = useState<Project | null>(null);
-  const [client, setClient] = useState<Client | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [issues, setIssues] = useState<SyncedGithubIssue[]>([]);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [files, setFiles] = useState<FileRecord[]>([]);
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
-  const [repos, setRepos] = useState<ProjectRepo[]>([]);
+  const queryClient = useQueryClient();
+  const { id } = use(params);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [showNewMilestone, setShowNewMilestone] = useState(false);
@@ -76,30 +71,26 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [editMilestone, setEditMilestone] = useState<Milestone | null>(null);
 
-  useEffect(() => { load(); }, [params]);
+  const { data: project } = useQuery({
+    queryKey: ['project', id],
+    queryFn: () => getProject(id),
+  });
 
-  async function load() {
-    const { id } = await params;
-
-    const proj = await getProject(id);
-    if (!proj) return;
-    setProject(proj);
-    if (proj.milestones) setMilestones(proj.milestones);
-    if (proj.tasks) setTasks(proj.tasks);
-    if (proj.notes) setNotes(proj.notes);
-    if (proj.files) setFiles(proj.files);
-    if (proj.repos) setRepos(proj.repos);
-    if (proj.syncedIssues) setIssues(proj.syncedIssues);
-    if (proj.proposals) setProposals(proj.proposals);
-    if (proj.invoices) setInvoices(proj.invoices);
-    setActivities([]);
-  }
+  const tasks = (project?.tasks ?? []) as Task[];
+  const issues = (project?.syncedIssues ?? []) as SyncedGithubIssue[];
+  const milestones = (project?.milestones ?? []) as Milestone[];
+  const notes = (project?.notes ?? []) as Note[];
+  const files = (project?.files ?? []) as FileRecord[];
+  const proposals = (project?.proposals ?? []) as Proposal[];
+  const invoices = (project?.invoices ?? []) as Invoice[];
+  const repos = (project?.repos ?? []) as ProjectRepo[];
+  const activities: ActivityLog[] = [];
 
   async function handleSaveProject(field: string, value: unknown) {
     if (!project) return;
     try {
       await updateProject(project.id, { [field]: value });
-      setProject({ ...project, [field]: value } as Project);
+      queryClient.setQueryData(['project', id], { ...project, [field]: value } as Project);
       toast.success('Project updated');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
@@ -121,7 +112,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     try {
       await deleteTask(taskId);
       toast.success('Task deleted');
-      load();
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete task');
     }
@@ -132,7 +123,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       await updateTask(taskId, data);
       toast.success('Task updated');
       setEditTask(null);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update task');
     }
@@ -142,7 +133,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     try {
       await deleteMilestone(milestoneId);
       toast.success('Milestone deleted');
-      load();
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete milestone');
     }
@@ -153,7 +144,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       await updateMilestone(milestoneId, data);
       toast.success('Milestone updated');
       setEditMilestone(null);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update milestone');
     }
@@ -181,7 +172,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <Badge variant="secondary" className="text-[10px]">{project.billing_type}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {client?.is_internal ? 'Internal — JSCo' : client?.company_name || 'Unknown'} · Started {formatDate(project.start_date)}
+            Started {formatDate(project.start_date)}
           </p>
         </div>
         <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
@@ -291,7 +282,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {project.description && (
             <Card>
               <CardHeader><CardTitle className="text-sm">Description</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{project.description}</p></CardContent>
+              <CardContent><MarkdownPreview value={project.description} /></CardContent>
             </Card>
           )}
 
@@ -338,13 +329,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <Button size="sm"><Plus className="mr-2 h-4 w-4" /> New Task</Button>
               </SheetTrigger>
               <SheetContent>
-                <SheetHeader><SheetTitle>New Task</SheetTitle></SheetHeader>
+                <SheetHeader><SheetTitle>New Task</SheetTitle><SheetDescription className="sr-only">Create a new task for this project</SheetDescription></SheetHeader>
                 <TaskForm projectId={project.id} milestones={milestones} onSubmit={async (data) => {
                   try {
                     await createTask(data as Record<string, unknown>);
                     toast.success('Task created');
                     setShowNewTask(false);
-                    load();
+                    queryClient.invalidateQueries({ queryKey: ['project', id] });
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : 'Failed to create task');
                   }
@@ -359,7 +350,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </Button>
               </SheetTrigger>
               <SheetContent>
-                <SheetHeader><SheetTitle>Create GitHub Issue</SheetTitle></SheetHeader>
+                <SheetHeader><SheetTitle>Create GitHub Issue</SheetTitle><SheetDescription className="sr-only">Create a new GitHub issue for this project</SheetDescription></SheetHeader>
                 <GithubIssueForm repos={repos} projectName={project?.name} onSubmit={async (data) => {
                   try {
                     const res = await fetch('/api/github/issues', {
@@ -370,7 +361,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     if (!res.ok) throw new Error('Failed to create issue');
                     toast.success('GitHub issue created');
                     setShowNewIssue(false);
-                    load();
+                    queryClient.invalidateQueries({ queryKey: ['project', id] });
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : 'Failed');
                   }
@@ -435,7 +426,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   await createMilestone({ ...data, project_id: project.id } as Record<string, unknown>);
                   toast.success('Milestone created');
                   setShowNewMilestone(false);
-                  load();
+                  queryClient.invalidateQueries({ queryKey: ['project', id] });
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : 'Failed to create milestone');
                 }
@@ -479,7 +470,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </TabsContent>
 
         <TabsContent value="notes">
-          <NotesTab notes={notes} projectId={project.id} onRefresh={load} />
+          <NotesTab notes={notes} projectId={project.id} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['project', id] })} />
         </TabsContent>
 
         <TabsContent value="files">
@@ -785,7 +776,7 @@ function NotesTab({ notes, projectId, onRefresh }: { notes: Note[]; projectId: s
         {notes.map((n) => (
           <div key={n.id} className="rounded-md border p-3">
             <p className="text-sm font-medium">{n.title}</p>
-            {n.body && <p className="text-xs text-muted-foreground mt-1">{n.body.slice(0, 200)}</p>}
+            {n.body && <MarkdownPreview value={n.body} className="max-h-20 overflow-hidden text-xs text-muted-foreground mt-1" />}
             <p className="text-[10px] text-muted-foreground mt-1">{formatDate(n.created_at)}</p>
           </div>
         ))}

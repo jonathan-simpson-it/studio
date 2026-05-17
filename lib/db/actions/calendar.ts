@@ -29,37 +29,37 @@ export async function ensureDefaultCalendar(userId: string) {
 export async function createCalendar(data: Record<string, unknown>) {
   await connect();
   const cal = await Calendar.create(data);
-  return cal.toObject({ virtuals: true });
+  return toPlain(cal.toObject({ virtuals: true }));
 }
 
 export async function updateCalendar(id: string, data: Record<string, unknown>) {
   await connect();
-  return Calendar.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Calendar.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteCalendar(id: string) {
   await connect();
   await CalendarMember.deleteMany({ calendar_id: id });
-  return Calendar.findByIdAndDelete(id).lean({ virtuals: true });
+  return toPlain(await Calendar.findByIdAndDelete(id).lean({ virtuals: true }));
 }
 
 export async function getCalendarMembers(calendarId: string) {
   await connect();
-  return CalendarMember.find({ calendar_id: calendarId }).lean({ virtuals: true });
+  return toPlain(await CalendarMember.find({ calendar_id: calendarId }).lean({ virtuals: true }));
 }
 
 export async function addCalendarMember(data: Record<string, unknown>) {
   await connect();
   const member = await CalendarMember.create(data);
-  return member.toObject({ virtuals: true });
+  return toPlain(member.toObject({ virtuals: true }));
 }
 
 export async function getEvents(start: Date, end: Date) {
   await connect();
-  return Event.find({
+  return toPlain(await Event.find({
     start_time: { $lte: end },
     end_time: { $gte: start },
-  }).sort({ start_time: 1 }).lean({ virtuals: true });
+  }).sort({ start_time: 1 }).lean({ virtuals: true }));
 }
 
 export async function getEventsForCalendar(calendarId: string, start: Date, end: Date) {
@@ -74,18 +74,18 @@ export async function getEventsForCalendar(calendarId: string, start: Date, end:
 export async function createEvent(data: Record<string, unknown>) {
   await connect();
   const event = await Event.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return event.toObject({ virtuals: true });
+  return toPlain(event.toObject({ virtuals: true }));
 }
 
 export async function updateEvent(id: string, data: Record<string, unknown>) {
   await connect();
   const existing = await Event.findById(id).select('version').lean({ virtuals: true }) as { version?: number } | null;
-  return Event.findByIdAndUpdate(id, { ...data, version: (existing?.version || 0) + 1, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await Event.findByIdAndUpdate(id, { ...data, version: (existing?.version || 0) + 1, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
 }
 
 export async function deleteEvent(id: string) {
   await connect();
-  return Event.findByIdAndDelete(id).lean({ virtuals: true });
+  return toPlain(await Event.findByIdAndDelete(id).lean({ virtuals: true }));
 }
 
 export async function checkEventConflicts(
@@ -101,7 +101,7 @@ export async function checkEventConflicts(
     end_time: { $gt: start },
   };
   if (excludeEventId) filter._id = { $ne: excludeEventId };
-  return Event.find(filter).lean({ virtuals: true });
+  return toPlain(await Event.find(filter).lean({ virtuals: true }));
 }
 
 // Reminders
@@ -162,10 +162,10 @@ export async function getPendingReminders() {
     .select('title start_time calendar_id created_by').lean({ virtuals: true });
   const eventMap = new Map(events.map((e: any) => [e._id.toString(), e]));
 
-  return reminders.map((r: any) => ({
+  return toPlain(reminders.map((r: any) => ({
     ...r,
     event: eventMap.get(r.event_id?.toString()) || null,
-  }));
+  })));
 }
 
 export async function markRemindersSent(ids: string[]) {
@@ -182,15 +182,15 @@ export async function getDailyExpenses(date: string) {
 export async function createDailyExpense(data: Record<string, unknown>) {
   await connect();
   const expense = await DailyExpense.create(data);
-  return expense.toObject({ virtuals: true });
+  return toPlain(expense.toObject({ virtuals: true }));
 }
 
 export async function deleteDailyExpense(id: string) {
   await connect();
-  return DailyExpense.findByIdAndDelete(id).lean({ virtuals: true });
+  return toPlain(await DailyExpense.findByIdAndDelete(id).lean({ virtuals: true }));
 }
 
 export async function updateDailyExpense(id: string, data: Record<string, unknown>) {
   await connect();
-  return DailyExpense.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true });
+  return toPlain(await DailyExpense.findByIdAndUpdate(id, data, { returnDocument: 'after' }).lean({ virtuals: true }));
 }

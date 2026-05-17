@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listTasks, createTask } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,19 +40,16 @@ import type { Task } from '@/types';
 
 export default function TasksPage() {
   const { data: session } = useSession();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const queryClient = useQueryClient();
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: listTasks,
+  });
   const [view, setView] = useState<'board' | 'table'>('board');
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    const data = await listTasks();
-    if (data) setTasks(data);
-  }
 
   const filtered = tasks.filter((t) => {
     if (filterPriority && t.priority !== filterPriority) return false;
@@ -103,7 +101,7 @@ export default function TasksPage() {
                 await createTask({ ...data, created_by: userId } as Record<string, unknown>);
                 toast.success('Task created');
                 setShowNewSheet(false);
-                load();
+                queryClient.invalidateQueries({ queryKey: ['tasks'] });
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Failed to create task');
               }
@@ -204,11 +202,11 @@ function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<voi
             label="AI"
           />
         </div>
-        <textarea
-          className="w-full rounded-md border bg-transparent p-3 text-sm"
-          rows={4}
+        <MarkdownEditor
           value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          onChange={(v) => setForm({ ...form, description: v })}
+          minHeight={150}
+          placeholder="Task description..."
         />
       </div>
       <div className="space-y-2">

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInboxMessages, markMessageRead, archiveMessage } from '@/lib/db/actions/google';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,32 +17,25 @@ const importanceColor: Record<MessageImportance, string> = {
 };
 
 export default function InboxPage() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: messages = [], isLoading } = useQuery({
+    queryKey: ['inbox'],
+    queryFn: () => getInboxMessages({ limit: 50 }),
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await getInboxMessages({ limit: 50 });
-      setMessages(data || []);
-    } catch {
-      setMessages([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, []);
 
   async function handleRead(id: string) {
     await markMessageRead(id);
-    setMessages((prev) => prev.map((m) => (m._id === id ? { ...m, is_read: true } : m)));
+    queryClient.setQueryData(['inbox'], (old: any[]) =>
+      old?.map((m: any) => (m._id === id ? { ...m, is_read: true } : m))
+    );
   }
 
   async function handleArchive(id: string) {
     await archiveMessage(id);
-    setMessages((prev) => prev.filter((m) => m._id !== id));
+    queryClient.setQueryData(['inbox'], (old: any[]) =>
+      old?.filter((m: any) => m._id !== id)
+    );
   }
 
   function toggleExpand(id: string) {
@@ -51,7 +45,7 @@ export default function InboxPage() {
     setExpandedId(expandedId === id ? null : id);
   }
 
-  const unreadCount = messages.filter((m) => !m.is_read).length;
+  const unreadCount = messages.filter((m: any) => !m.is_read).length;
 
   return (
     <div className="space-y-4">
@@ -62,13 +56,13 @@ export default function InboxPage() {
             {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          {loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['inbox'] })} disabled={isLoading}>
+          {isLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
           Refresh
         </Button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
