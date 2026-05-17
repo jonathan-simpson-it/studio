@@ -6,10 +6,10 @@ import type { AIActionType, AIModelKey } from '@/types';
 
 export const MODEL_REGISTRY: Record<AIModelKey, string> = {
   default: 'openai/gpt-oss-120b:free',
-  longform: 'nvidia/nemotron-3-super:free',
-  structured: 'minimax/minimax-m2.5:free',
+  longform: 'google/gemini-2.0-flash-exp:free',
+  structured: 'mistralai/mistral-7b-instruct:free',
   multilingual: 'google/gemma-4-31b:free',
-  fast: 'z-ai/glm-4.5-air:free',
+  fast: 'google/gemini-2.0-flash-exp:free',
 };
 
 const ACTION_MODEL_MAP: Record<string, AIModelKey> = {
@@ -248,14 +248,22 @@ export async function generateWithFallback(
   action: AIActionType,
   context: Record<string, unknown>
 ): Promise<{ content: string; modelUsed: string; latencyMs: number; fallbackUsed: boolean }> {
-  try {
-    const result = await callOpenRouter(action, context);
-    return { ...result, fallbackUsed: false };
-  } catch (primaryError) {
-    console.warn(`Primary model failed for action "${action}", falling back to fast:`, primaryError);
-    const result = await callOpenRouter(action, context, MODEL_REGISTRY.fast);
-    return { ...result, fallbackUsed: true };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await callOpenRouter(action, context);
+      return { ...result, fallbackUsed: false };
+    } catch (primaryError) {
+      const isRateLimit = String(primaryError).includes('429');
+      if (isRateLimit && attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      console.warn(`Primary model failed for action "${action}", falling back to fast:`, primaryError);
+    }
   }
+
+  const result = await callOpenRouter(action, context, MODEL_REGISTRY.fast);
+  return { ...result, fallbackUsed: true };
 }
 
 export async function testModel(modelKey: AIModelKey): Promise<{ ok: boolean; modelUsed: string; latencyMs: number }> {

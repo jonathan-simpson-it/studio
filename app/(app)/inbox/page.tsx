@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getInboxMessages, markMessageRead, archiveMessage } from '@/lib/db/actions/google';
+import { getInboxMessages, markMessageRead, archiveMessage, syncInboxNow } from '@/lib/db/actions/google';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Archive, Mail, MailOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2, Archive, Mail, MailOpen } from 'lucide-react';
 import type { MessageImportance } from '@/types';
 
 const importanceColor: Record<MessageImportance, string> = {
@@ -23,6 +23,42 @@ export default function InboxPage() {
     queryFn: () => getInboxMessages({ limit: 50 }),
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncMsg, setLastSyncMsg] = useState<string | null>(null);
+  const isFirstMount = useRef(true);
+
+  const doSync = useCallback(async (showToast: boolean) => {
+    setIsSyncing(true);
+    try {
+      const result = await syncInboxNow();
+      if (result.totalSynced > 0) {
+        setLastSyncMsg(`Synced ${result.totalSynced} new`);
+        if (showToast) {
+          toast.success(`Synced ${result.totalSynced} new message${result.totalSynced > 1 ? 's' : ''} from Gmail`);
+        }
+      } else {
+        setLastSyncMsg('Up to date');
+      }
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      doSync(false);
+    }
+  }, [doSync]);
+
+  useEffect(() => {
+    const interval = setInterval(() => doSync(true), 60000);
+    return () => clearInterval(interval);
+  }, [doSync]);
 
   async function handleRead(id: string) {
     await markMessageRead(id);
@@ -56,10 +92,15 @@ export default function InboxPage() {
             {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['inbox'] })} disabled={isLoading}>
-          {isLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          {lastSyncMsg && (
+            <span className="text-xs text-muted-foreground">{lastSyncMsg}</span>
+          )}
+          <Button variant="outline" size="sm" onClick={() => doSync(true)} disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+            {isSyncing ? 'Syncing...' : 'Sync'}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

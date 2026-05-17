@@ -8,6 +8,26 @@ export interface EmailSummaryResult {
   action_description: string | null;
 }
 
+function safeParseJSON(raw: string): EmailSummaryResult | null {
+  const trimRaw = raw.trim();
+  try { return JSON.parse(trimRaw); } catch {}
+
+  let depth = 0;
+  let start = -1;
+  for (let i = 0; i < trimRaw.length; i++) {
+    if (trimRaw[i] === '{') {
+      if (start === -1) start = i;
+      depth++;
+    } else if (trimRaw[i] === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        try { return JSON.parse(trimRaw.slice(start, i + 1)); } catch { start = -1; }
+      }
+    }
+  }
+  return null;
+}
+
 export async function summarizeEmail(from: string, subject: string, body: string): Promise<EmailSummaryResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -28,14 +48,12 @@ export async function summarizeEmail(from: string, subject: string, body: string
       },
     });
 
-    const raw = result.content;
-
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { importance: 'medium', summary: raw, action_needed: false, action_description: null };
+    const parsed = safeParseJSON(result.content);
+    if (!parsed) {
+      return { importance: 'medium', summary: result.content, action_needed: false, action_description: null };
     }
 
-    return JSON.parse(jsonMatch[0]);
+    return parsed;
   } catch (err) {
     console.error('AI summarization error:', err);
     return { importance: 'medium', summary: '', action_needed: false, action_description: null };

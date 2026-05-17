@@ -5,6 +5,7 @@ export interface ICalendar extends Document {
   color: string;
   type: string;
   is_default: boolean;
+  sync_to_google: boolean;
   google_calendar_id: string | null;
   created_by: string;
   created_at: Date;
@@ -15,6 +16,7 @@ const calendarSchema = new Schema<ICalendar>({
   color: { type: String, default: '#3b82f6' },
   type: { type: String, default: 'personal' },
   is_default: { type: Boolean, default: false },
+  sync_to_google: { type: Boolean, default: false },
   google_calendar_id: { type: String, default: null },
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },

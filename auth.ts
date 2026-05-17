@@ -126,6 +126,26 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           }
         }
 
+        // 2.5. Already signed in — link this Google account
+        try {
+          const currentSession = await auth()
+          if (currentSession?.user?.id) {
+            const currentUser = await User.findById(currentSession.user.id)
+            if (currentUser) {
+              const updateData: Record<string, any> = { ...providerFields }
+              if (avatarUrl) {
+                updateData.avatar_url = avatarUrl
+                updateData.avatar_provider = provider
+              }
+              await User.findByIdAndUpdate(currentUser._id, updateData)
+              user.id = currentUser._id.toString()
+              return true
+            }
+          }
+        } catch {
+          // Session not available — skip
+        }
+
         // 3. New user — check invite code cookie
         try {
           const { cookies } = await import("next/headers")

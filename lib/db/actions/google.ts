@@ -3,7 +3,7 @@
 import { connect } from '@/lib/db/connect';
 import { User } from '@/lib/db/models/core';
 import { GoogleCalendarSync, GoogleInbox, InboxMessage } from '@/lib/db/models/google';
-import { Event } from '@/lib/db/models/calendar';
+import { Calendar, CalendarMember, Event } from '@/lib/db/models/calendar';
 import { refreshGoogleToken } from '@/lib/google/client';
 import { listGoogleCalendars, listGoogleCalendarEvents } from '@/lib/google/calendar';
 import { listLabels, listMessages, getMessage, getHeader, getPlainBody } from '@/lib/google/gmail';
@@ -65,6 +65,31 @@ export async function fetchAndStoreGoogleCalendars() {
       },
       { upsert: true }
     );
+
+    const calendarDoc = await Calendar.findOneAndUpdate(
+      { google_calendar_id: cal.id, created_by: session.user.id },
+      {
+        name: cal.summary,
+        color: cal.backgroundColor || '#3b82f6',
+        type: 'personal',
+        google_calendar_id: cal.id,
+        sync_to_google: true,
+        created_by: session.user.id,
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    const memberExists = await CalendarMember.findOne({
+      calendar_id: (calendarDoc as any)._id.toString(),
+      user_id: session.user.id,
+    });
+    if (!memberExists) {
+      await CalendarMember.create({
+        calendar_id: (calendarDoc as any)._id.toString(),
+        user_id: session.user.id,
+        role: 'OWNER',
+      });
+    }
   }
 }
 
@@ -211,7 +236,33 @@ export async function syncGmailForUser(userId: string, labelId: string) {
     }
   }
 
+  await GoogleInbox.findOneAndUpdate(
+    { user_id: userId, label_id: labelId },
+    { last_synced_at: new Date() }
+  );
+
   return { synced };
+}
+
+export async function syncInboxNow() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  await connect();
+
+  const activeInboxes = await GoogleInbox.find({ user_id: session.user.id, is_active: true }).lean();
+
+  let totalSynced = 0;
+  for (const inbox of activeInboxes) {
+    try {
+      const result = await syncGmailForUser(session.user.id, (inbox as any).label_id);
+      totalSynced += result.synced;
+    } catch (err) {
+      console.error(`Failed to sync inbox ${(inbox as any).name}:`, err);
+    }
+  }
+
+  return { totalSynced, labelsChecked: activeInboxes.length };
 }
 
 export async function getInboxMessages(options?: {

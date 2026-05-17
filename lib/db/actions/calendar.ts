@@ -4,10 +4,23 @@ import { connect } from '@/lib/db/connect';
 import { Calendar, CalendarMember, Event, Reminder } from '@/lib/db/models/calendar';
 import { DailyExpense } from '@/lib/db/models/calendar';
 import { toPlain } from '@/lib/db/to-plain';
+import { auth } from '@/auth';
+import { syncEventToGoogle, deleteGoogleEvent } from '@/lib/google/calendar-write';
 
 export async function listCalendars() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
   await connect();
-  return toPlain(await Calendar.find().sort({ created_at: 1 }).lean({ virtuals: true }));
+  const [calendars, memberships] = await Promise.all([
+    Calendar.find().sort({ created_at: 1 }).lean({ virtuals: true }),
+    CalendarMember.find({ user_id: session.user.id }).lean({ virtuals: true }),
+  ]);
+  const memberCalendarIds = new Set(memberships.map((m: any) => m.calendar_id));
+  return toPlain(calendars.filter((cal: any) => {
+    if (cal.type === 'personal') return cal.created_by === session!.user!.id;
+    return memberCalendarIds.has(cal._id.toString());
+  }));
 }
 
 export async function getAllEvents() {
@@ -74,17 +87,93 @@ export async function getEventsForCalendar(calendarId: string, start: Date, end:
 export async function createEvent(data: Record<string, unknown>) {
   await connect();
   const event = await Event.create({ ...data, created_at: new Date(), updated_at: new Date() });
-  return toPlain(event.toObject({ virtuals: true }));
+  const result = event.toObject({ virtuals: true });
+
+  const calendar = await Calendar.findById(data.calendar_id).lean({ virtuals: true });
+  const cal = calendar as any;
+  if (cal?.google_calendar_id) {
+    const syncResult = await syncEventToGoogle(
+      {
+        id: result._id.toString(),
+        calendar_id: result.calendar_id,
+        title: result.title,
+        description: result.description || null,
+        location: result.location || null,
+        start_time: result.start_time,
+        end_time: result.end_time,
+        is_all_day: result.is_all_day || false,
+      },
+      { type: cal.type, google_calendar_id: cal.google_calendar_id },
+      result.created_by
+    );
+    await Event.findByIdAndUpdate(result._id, {
+      google_events: syncResult.google_events,
+      sync_status: syncResult.sync_status,
+    });
+    (result as any).sync_status = syncResult.sync_status;
+    (result as any).google_events = syncResult.google_events;
+  }
+
+  return toPlain(result);
 }
 
 export async function updateEvent(id: string, data: Record<string, unknown>) {
   await connect();
-  const existing = await Event.findById(id).select('version').lean({ virtuals: true }) as { version?: number } | null;
-  return toPlain(await Event.findByIdAndUpdate(id, { ...data, version: (existing?.version || 0) + 1, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
+  const existing = await Event.findById(id).select('version google_events').lean({ virtuals: true }) as any;
+  const updated = await Event.findByIdAndUpdate(
+    id,
+    { ...data, version: (existing?.version || 0) + 1, updated_at: new Date() },
+    { returnDocument: 'after' }
+  ).lean({ virtuals: true });
+  if (!updated) return toPlain(null);
+
+  const calendar = await Calendar.findById(updated.calendar_id).lean({ virtuals: true });
+  const cal = calendar as any;
+  if (cal?.google_calendar_id) {
+    const syncResult = await syncEventToGoogle(
+      {
+        id: id.toString(),
+        calendar_id: updated.calendar_id,
+        title: updated.title,
+        description: updated.description || null,
+        location: updated.location || null,
+        start_time: updated.start_time,
+        end_time: updated.end_time,
+        is_all_day: updated.is_all_day || false,
+        google_events: existing?.google_events || [],
+      },
+      { type: cal.type, google_calendar_id: cal.google_calendar_id },
+      updated.created_by
+    );
+    await Event.findByIdAndUpdate(id, {
+      google_events: syncResult.google_events,
+      sync_status: syncResult.sync_status,
+    });
+    (updated as any).sync_status = syncResult.sync_status;
+    (updated as any).google_events = syncResult.google_events;
+  }
+
+  return toPlain(updated);
 }
 
 export async function deleteEvent(id: string) {
   await connect();
+  const event = await Event.findById(id).select('calendar_id google_events').lean({ virtuals: true }) as any;
+  if (!event) return toPlain(null);
+
+  if (event.google_events?.length > 0) {
+    const calendar = await Calendar.findById(event.calendar_id).lean({ virtuals: true }) as any;
+    if (calendar?.google_calendar_id) {
+      for (const ref of event.google_events) {
+        try {
+          await deleteGoogleEvent(ref.user_id, calendar.google_calendar_id, ref.google_event_id);
+        } catch (err) {
+          console.error(`Failed to delete Google event ${ref.google_event_id}:`, err);
+        }
+      }
+    }
+  }
+
   return toPlain(await Event.findByIdAndDelete(id).lean({ virtuals: true }));
 }
 
