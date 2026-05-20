@@ -136,7 +136,7 @@ Every request includes:
 - An **action-specific system prompt** defining the role (proposal writer, project manager, etc.)
 - A **shared agency context** block:
   ```
-  Agency: Jonathon Simpson & Co.
+  Agency: Jonathan Simpson & Co.
   Location: Hong Kong
   Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.
   ```

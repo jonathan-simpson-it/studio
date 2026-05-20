@@ -103,16 +103,16 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
     if (!proposal) return;
     await handleSave();
     const client = (proposal as any).client as Client | undefined;
-    setSendSubject(`Proposal ${proposal.proposal_number} from Jonathon Simpson & Co.`);
+    setSendSubject(`Proposal ${proposal.proposal_number} from Jonathan Simpson & Co.`);
     setSendBody(`Dear ${client?.contact_name || 'Client'},
 
-Please find attached proposal ${proposal.proposal_number} from Jonathon Simpson & Co.
+Please find attached proposal ${proposal.proposal_number} from Jonathan Simpson & Co.
 
 Total: ${formatCurrency(proposal.total, proposal.currency)}
 
 We look forward to the opportunity to work with you.
 
-— Jonathon Simpson & Co.`);
+— Jonathan Simpson & Co.`);
     setShowSendDialog(true);
   }
 

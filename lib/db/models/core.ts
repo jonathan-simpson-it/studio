@@ -47,7 +47,7 @@ export interface IAgencySettings extends Document {
 }
 
 const agencySettingsSchema = new Schema<IAgencySettings>({
-  agency_name: { type: String, default: 'Jonathon Simpson & Co.' },
+  agency_name: { type: String, default: 'Jonathan Simpson & Co.' },
   agency_address: { type: String, default: '' },
   logo_url: { type: String, default: null },
   default_currency: { type: String, default: 'HKD' },

@@ -109,10 +109,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     if (!invoice) return;
     await handleSave();
     const client = (invoice as any).client as Client | undefined;
-    setSendSubject(`Invoice ${invoice.invoice_number} from Jonathon Simpson & Co.`);
+    setSendSubject(`Invoice ${invoice.invoice_number} from Jonathan Simpson & Co.`);
     setSendBody(`Dear ${client?.contact_name || 'Client'},
 
-Please find attached invoice ${invoice.invoice_number} from Jonathon Simpson & Co.
+Please find attached invoice ${invoice.invoice_number} from Jonathan Simpson & Co.
 
 Total: ${formatCurrency(invoice.total, invoice.currency)}
 Due: ${invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-GB') : 'Upon receipt'}
@@ -121,7 +121,7 @@ Please don't hesitate to reach out if you have any questions.
 
 Thank you for your business.
 
-— Jonathon Simpson & Co.`);
+— Jonathan Simpson & Co.`);
     setShowSendDialog(true);
   }
 

@@ -111,7 +111,7 @@ export async function getAgencySettings() {
   const settings = await AgencySettings.findOne().lean({ virtuals: true });
   if (!settings) {
     const created = await AgencySettings.create({
-      agency_name: 'Jonathon Simpson & Co.',
+      agency_name: 'Jonathan Simpson & Co.',
       agency_address: '',
       default_currency: 'HKD',
       invoice_default_terms: '',

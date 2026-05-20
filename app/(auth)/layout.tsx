@@ -11,7 +11,7 @@ export default function AuthLayout({
             Studio
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Jonathon Simpson &amp; Co.
+            Jonathan Simpson &amp; Co.
           </p>
         </div>
         {children}

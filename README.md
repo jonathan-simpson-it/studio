@@ -1,8 +1,8 @@
-# Studio — Jonathon Simpson & Co. Agency OS
+# Studio — Jonathan Simpson & Co. Agency OS
 
 Built with Next.js 16 · TypeScript · Tailwind CSS v4 · shadcn/ui · Supabase
 
-An internal agency operating system for Jonathon Simpson & Co., a two-founder software and automation agency based in Hong Kong. Replaces a collection of spreadsheets, Google Docs, and disconnected tools with one integrated platform.
+An internal agency operating system for Jonathan Simpson & Co., a two-founder software and automation agency based in Hong Kong. Replaces a collection of spreadsheets, Google Docs, and disconnected tools with one integrated platform.
 
 ---
 
@@ -79,7 +79,7 @@ In Supabase Storage, create a private bucket called `studio-files`. Add the RLS 
 
 In Supabase Auth dashboard, create two users:
 - `lewis@jonathansimpson.co` — Lewis Simpson
-- `devano@jonathansimpson.co` — Devano Jonathon
+- `devano@jonathansimpson.co` — Devano Jonathan
 
 Then add them to the `users` table via SQL Editor with `role = 'founder'`.
 

@@ -36,7 +36,7 @@ CREATE POLICY "founders_all_studio_files" ON storage.objects
 1. Go to **Authentication → Users**
 2. Click **Add User**
 3. Create a user for Lewis Simpson: `lewis@jonathansimpson.co`
-4. Create a user for Devano Jonathon: `devano@jonathansimpson.co`
+4. Create a user for Devano Jonathan: `devano@jonathansimpson.co`
 5. Note their UUIDs from the user list
 
 ### 1.5 Seed Users Table
@@ -46,7 +46,7 @@ Run the following in SQL Editor (replace UUIDs with actual values):
 INSERT INTO users (id, email, full_name, role)
 VALUES
   ('ACTUAL-AUTH-UUID-LEWIS', 'lewis@jonathansimpson.co', 'Lewis Simpson', 'founder'),
-  ('ACTUAL-AUTH-UUID-DEVANO', 'devano@jonathansimpson.co', 'Devano Jonathon', 'founder');
+  ('ACTUAL-AUTH-UUID-DEVANO', 'devano@jonathansimpson.co', 'Devano Jonathan', 'founder');
 ```
 
 ### 1.6 Set Up Row-Level Security

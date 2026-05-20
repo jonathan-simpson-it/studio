@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Studio — Jonathon Simpson & Co.",
+  title: "Studio — Jonathan Simpson & Co.",
   description: "Internal agency operating system",
   icons: {
     icon: [

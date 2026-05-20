@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [profileForm, setProfileForm] = useState({ full_name: '', timezone: 'Asia/Hong_Kong', default_hourly_rate: '0' });
-  const [agencyForm, setAgencyForm] = useState({ agency_name: 'Jonathon Simpson & Co.', agency_address: '', default_currency: 'HKD' });
+  const [agencyForm, setAgencyForm] = useState({ agency_name: 'Jonathan Simpson & Co.', agency_address: '', default_currency: 'HKD' });
   const [templateForm, setTemplateForm] = useState({ invoice_default_terms: '', proposal_default_terms: '', proposal_default_scope_template: '' });
   const [testingModel, setTestingModel] = useState<string | null>(null);
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);

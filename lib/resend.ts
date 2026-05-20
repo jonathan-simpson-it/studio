@@ -17,10 +17,10 @@ export async function sendInvoiceEmail(
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathon Simpson & Co. <${from}>`,
+    from: `Jonathan Simpson & Co. <${from}>`,
     to,
-    subject: `Invoice ${invoiceNumber} from Jonathon Simpson & Co.`,
-    text: `Dear Client,\n\nPlease find attached invoice ${invoiceNumber} from Jonathon Simpson & Co.\n\nThank you for your business.\n\n— Jonathon Simpson & Co.`,
+    subject: `Invoice ${invoiceNumber} from Jonathan Simpson & Co.`,
+    text: `Dear Client,\n\nPlease find attached invoice ${invoiceNumber} from Jonathan Simpson & Co.\n\nThank you for your business.\n\n— Jonathan Simpson & Co.`,
     attachments: [
       {
         filename: `${invoiceNumber}.pdf`,
@@ -41,10 +41,10 @@ export async function sendProposalEmail(
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathon Simpson & Co. <${from}>`,
+    from: `Jonathan Simpson & Co. <${from}>`,
     to,
-    subject: `Proposal ${proposalNumber} from Jonathon Simpson & Co.`,
-    text: `Dear Client,\n\nPlease find attached proposal ${proposalNumber} from Jonathon Simpson & Co.\n\nWe look forward to working with you.\n\n— Jonathon Simpson & Co.`,
+    subject: `Proposal ${proposalNumber} from Jonathan Simpson & Co.`,
+    text: `Dear Client,\n\nPlease find attached proposal ${proposalNumber} from Jonathan Simpson & Co.\n\nWe look forward to working with you.\n\n— Jonathan Simpson & Co.`,
     attachments: [
       {
         filename: `${proposalNumber}.pdf`,
@@ -66,7 +66,7 @@ export async function sendGeneralEmail(
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathon Simpson & Co. <${from}>`,
+    from: `Jonathan Simpson & Co. <${from}>`,
     to,
     subject,
     text: body,
@@ -84,7 +84,7 @@ export async function sendTestEmail(to: string) {
   const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathon Simpson & Co. <${from}>`,
+    from: `Jonathan Simpson & Co. <${from}>`,
     to,
     subject: 'Studio — Resend connection test',
     text: 'This is a test email from Studio. Your Resend integration is working correctly.',
