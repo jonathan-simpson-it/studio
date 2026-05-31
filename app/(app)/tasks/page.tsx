@@ -5,10 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listTasks, createTask, updateTask } from '@/lib/db/actions/projects';
+import { listFounders } from '@/lib/db/actions/settings';
+import { FounderMultiSelect } from '@/components/shared/FounderMultiSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
@@ -54,8 +57,9 @@ const priorityStyles: Record<string, string> = {
   Urgent: 'border-red-500 text-red-500',
 };
 
-function TaskCardContent({ task }: { task: Task }) {
+function TaskCardContent({ task, founders }: { task: Task; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const router = useRouter();
+  const assignees = founders.filter((f) => task.assignee_ids?.includes(f.id));
 
   return (
     <Card
@@ -70,43 +74,68 @@ function TaskCardContent({ task }: { task: Task }) {
           </Badge>
           {task.due_date && <span>Due {formatDate(task.due_date)}</span>}
         </div>
+        {assignees.length > 0 && (
+          <div className="flex -space-x-1.5">
+            {assignees.map((f) => (
+              <Avatar key={f.id} className="h-5 w-5 border border-background">
+                <AvatarImage src={f.avatar_url || undefined} alt={f.name} />
+                <AvatarFallback className="text-[8px]">{f.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+              </Avatar>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function TaskTable({ tasks }: { tasks: Task[] }) {
+function TaskTable({ tasks, founders }: { tasks: Task[]; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const router = useRouter();
 
   return (
     <Card>
-      <CardContent className="p-0">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Title</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Priority</th>
-              <th className="px-4 py-3 font-medium">Due Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((t) => (
-              <tr
-                key={t.id}
-                className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
-                onClick={() => router.push(`/tasks/${t.id}`)}
-              >
-                <td className="px-4 py-3 font-medium">{t.title}</td>
-                <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
-                <td className="px-4 py-3">
-                  <Badge variant="outline" className={`text-[10px] ${priorityStyles[t.priority] || ''}`}>
-                    {t.priority}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : '—'}</td>
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Task</th>
+                <th className="px-4 py-3 font-medium">Priority</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Assignee</th>
+                <th className="px-4 py-3 font-medium">Due</th>
+                <th className="px-4 py-3 w-10"></th>
               </tr>
-            ))}
+            </thead>
+          <tbody>
+            {tasks.map((t) => {
+              const assignees = founders.filter((f) => t.assignee_ids?.includes(f.id));
+              return (
+                <tr
+                  key={t.id}
+                  className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
+                  onClick={() => router.push(`/tasks/${t.id}`)}
+                >
+                  <td className="px-4 py-3 font-medium">{t.title}</td>
+                  <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className={`text-[10px] ${priorityStyles[t.priority] || ''}`}>
+                      {t.priority}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex -space-x-1.5">
+                      {assignees.map((f) => (
+                        <Avatar key={f.id} className="h-6 w-6 border border-background">
+                          <AvatarImage src={f.avatar_url || undefined} alt={f.name} />
+                          <AvatarFallback className="text-[9px]">{f.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : '—'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CardContent>
@@ -120,6 +149,11 @@ export default function TasksPage() {
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks'],
     queryFn: listTasks,
+  });
+
+  const { data: founders = [] } = useQuery({
+    queryKey: ['founders'],
+    queryFn: listFounders,
   });
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'kanban' | 'table' | 'board'>('board');
@@ -196,7 +230,7 @@ export default function TasksPage() {
             </SheetTrigger>
             <SheetContent>
               <SheetHeader><SheetTitle>New Task</SheetTitle><SheetDescription>Fill in the details for a new task</SheetDescription></SheetHeader>
-              <TaskForm onSubmit={async (data) => {
+              <TaskForm founders={founders} onSubmit={async (data) => {
                 const userId = session?.user?.id;
                 try {
                   await createTask({ ...data, created_by: userId } as Record<string, unknown>);
@@ -219,22 +253,23 @@ export default function TasksPage() {
           getItemId={(t) => t.id}
           getItemStatus={(t) => t.status}
           onStatusChange={handleStatusChange}
-          renderCard={(task) => <TaskCardContent task={task} />}
+          renderCard={(task) => <TaskCardContent task={task} founders={founders} />}
           columnColors={columnColors}
           emptyMessage="No tasks"
         />
       ) : (
-        <TaskTable tasks={filtered} />
+        <TaskTable tasks={filtered} founders={founders} />
       )}
     </div>
   );
 }
 
-function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<void> }) {
+function TaskForm({ onSubmit, founders }: { onSubmit: (data: Partial<Task>) => Promise<void>; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo' });
   const [dueDate, setDueDate] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, due_date: dueDate || null } as Partial<Task>); }} className="space-y-4 pt-4">
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, assignee_ids: assigneeIds, due_date: dueDate || null } as Partial<Task>); }} className="space-y-4 pt-4">
       <div className="flex items-center justify-between">
         <Label>Smart Fill</Label>
         <SmartFillButton
@@ -271,6 +306,10 @@ function TaskForm({ onSubmit }: { onSubmit: (data: Partial<Task>) => Promise<voi
           minHeight={150}
           placeholder="Task description..."
         />
+      </div>
+      <div className="space-y-2">
+        <Label>Assignees</Label>
+        <FounderMultiSelect value={assigneeIds} onChange={setAssigneeIds} />
       </div>
       <div className="space-y-2">
         <Label>Priority</Label>

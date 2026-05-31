@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, LayoutGrid, Table2 } from 'lucide-react';
+import { Search, LayoutGrid, Table2, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface FilterOption {
   label: string
@@ -33,6 +34,7 @@ interface BoardToolbarProps {
   onViewChange: (view: 'kanban' | 'table') => void
   filters?: FilterConfig[]
   createButton?: React.ReactNode
+  onExport?: () => void
 }
 
 export function BoardToolbar({
@@ -43,10 +45,21 @@ export function BoardToolbar({
   onViewChange,
   filters,
   createButton,
+  onExport,
 }: BoardToolbarProps) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
+        {onExport && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={onExport} aria-label="Export to CSV">
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Export to CSV</TooltipContent>
+          </Tooltip>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -69,20 +82,32 @@ export function BoardToolbar({
           </Select>
         ))}
         <div className="flex items-center rounded-lg border p-0.5">
-          <Button
-            variant={view === 'kanban' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewChange('kanban')}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={view === 'table' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewChange('table')}
-          >
-            <Table2 className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={view === 'kanban' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('kanban')}
+                aria-label="Kanban view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Kanban view</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={view === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('table')}
+                aria-label="Table view"
+              >
+                <Table2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Table view</TooltipContent>
+          </Tooltip>
         </div>
       </div>
       {createButton}

@@ -41,7 +41,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   const config = statusConfig[status] || { label: status, variant: 'outline' as const };
   return (
-    <Badge variant={config.variant} className="text-[10px]">
+    <Badge variant={config.variant} className="text-xs">
       {config.label}
     </Badge>
   );

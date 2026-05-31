@@ -4,6 +4,8 @@ import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTask, updateTask, deleteTask } from '@/lib/db/actions/projects';
+import { listFounders } from '@/lib/db/actions/settings';
+import { FounderMultiSelect } from '@/components/shared/FounderMultiSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +34,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const { data: task } = useQuery({
     queryKey: ['task', id],
     queryFn: () => getTask(id),
+  });
+
+  const { data: founders = [] } = useQuery({
+    queryKey: ['founders'],
+    queryFn: listFounders,
   });
 
   if (!task) return null;
@@ -81,7 +88,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
@@ -131,6 +138,13 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 onBlur={(e) =>
                   handleSave('due_date', e.target.value ? new Date(e.target.value).toISOString() : null)
                 }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Assignees</Label>
+              <FounderMultiSelect
+                value={task.assignee_ids || []}
+                onChange={(ids) => handleSave('assignee_ids', ids)}
               />
             </div>
           </div>

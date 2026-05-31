@@ -25,9 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils';
-import { Search, RefreshCw, Plus } from 'lucide-react';
+import { exportToCSV } from '@/lib/export-csv';
+import { Search, RefreshCw, Plus, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Invoice } from '@/types';
 
@@ -70,9 +72,16 @@ export default function InvoicesPage() {
     .filter((i) => ['Sent', 'Overdue'].includes(i.status))
     .reduce((s, i) => s + i.total, 0);
 
-  const filtered = invoices.filter((i) =>
-    i.invoice_number.toLowerCase().includes(search.toLowerCase())
-  );
+  const clientMap = Object.fromEntries(clients.map((c: any) => [c.id, c.company_name || '']));
+  const filtered = invoices.filter((i) => {
+    const q = search.toLowerCase();
+    return (
+      i.invoice_number.toLowerCase().includes(q) ||
+      i.status.toLowerCase().includes(q) ||
+      String(i.total).includes(q) ||
+      (clientMap[i.client_id] || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -90,16 +99,51 @@ export default function InvoicesPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-4 flex-wrap w-full">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search invoices..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
+            <Input placeholder="Search invoices..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-64 pl-9" />
           </div>
-          <Button variant="outline" size="sm" onClick={handleCheckOverdue} disabled={checking}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${checking ? 'animate-spin' : ''}`} />
-            {checking ? 'Checking...' : 'Check Overdue'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    exportToCSV(
+                      filtered.map((i) => ({
+                        number: i.invoice_number,
+                        status: i.status,
+                        amount: i.total,
+                        currency: i.currency,
+                        issued: i.issue_date || '',
+                        due: i.due_date || '',
+                      })),
+                      [
+                        { key: 'number', label: 'Invoice Number' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'amount', label: 'Amount' },
+                        { key: 'currency', label: 'Currency' },
+                        { key: 'issued', label: 'Issue Date' },
+                        { key: 'due', label: 'Due Date' },
+                      ],
+                      `invoices-${new Date().toISOString().split('T')[0]}`
+                    )
+                  }
+                  aria-label="Export to CSV"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export to CSV</TooltipContent>
+            </Tooltip>
+            <Button variant="outline" size="sm" onClick={handleCheckOverdue} disabled={checking}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${checking ? 'animate-spin' : ''}`} />
+              {checking ? 'Checking...' : 'Check Overdue'}
+            </Button>
+          </div>
         </div>
 
         <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
@@ -189,7 +233,7 @@ export default function InvoicesPage() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">

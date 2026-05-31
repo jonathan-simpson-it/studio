@@ -47,13 +47,7 @@ export default function RootLayout({
           <QueryProvider>
             <Toaster
               position="top-right"
-              toastOptions={{
-                style: {
-                  background: '#18181b',
-                  color: '#fafafa',
-                  border: '1px solid #27272a',
-                },
-              }}
+              theme="dark"
             />
             {children}
           </QueryProvider>

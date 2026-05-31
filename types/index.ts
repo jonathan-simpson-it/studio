@@ -11,7 +11,7 @@ export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
 export type Currency = 'HKD' | 'GBP' | 'IDR';
 export type BillingType = 'One-off' | 'Retainer' | 'Milestone' | 'Support';
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
-export type TicketSource = 'support-form' | 'email' | 'contact-form' | 'inbound';
+export type TicketSource = 'support-form' | 'email' | 'contact-form' | 'inbound' | 'github';
 export type CostCategory = 'Software' | 'API' | 'Contractor' | 'Domain' | 'Hosting' | 'Travel' | 'Other';
 export type Visibility = 'internal' | 'private' | 'client-safe';
 export type UserRole = 'founder' | 'client';
@@ -175,7 +175,7 @@ export interface Task {
   project_id: string | null;
   client_id: string | null;
   milestone_id: string | null;
-  assignee_id: string | null;
+  assignee_ids: string[];
   priority: TaskPriority;
   status: TaskStatus;
   due_date: string | null;
@@ -217,6 +217,7 @@ export interface Ticket {
   priority: TaskPriority;
   source: TicketSource;
   tags: string[];
+  assignee_ids: string[];
   created_task_id: string | null;
   created_issue_url: string | null;
   original_message: string | null;

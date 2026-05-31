@@ -33,7 +33,7 @@ export default function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={userImage || undefined} alt={userName} />
+            <AvatarImage src={userImage || undefined} alt={userName} loading="lazy" />
             <AvatarFallback className="text-xs bg-muted">
               {userName.slice(0, 2).toUpperCase()}
             </AvatarFallback>

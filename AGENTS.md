@@ -1,3 +1,5 @@
+# README FIRST — read README.md for the complete file structure, route map, database schema, and project conventions before editing any code.
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 

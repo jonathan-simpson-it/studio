@@ -41,9 +41,10 @@ import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, ExternalLink, ListTodo } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import type { Client, Project, Invoice, Proposal, Note, FileRecord, ActivityLog } from '@/types';
+import type { Client, Project, Invoice, Proposal, Note, FileRecord, ActivityLog, Ticket } from '@/types';
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const notes = (client?.notes ?? []) as Note[];
   const files = (client?.files ?? []) as FileRecord[];
   const activities = (client?.activity ?? []) as ActivityLog[];
+  const tickets = (client?.tickets ?? []) as (Ticket & { project_name?: string | null; project_repo?: string | null })[];
 
   async function handleSave(field: string, value: unknown) {
     if (!client) return;
@@ -168,7 +170,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       <Card>
-        <CardContent className="p-6 grid grid-cols-2 gap-6 text-sm">
+        <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
           <div className="space-y-2">
             <Label>Company Name</Label>
             <Input
@@ -238,8 +240,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </Card>
 
       <Tabs defaultValue="projects" className="w-full">
-        <TabsList>
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="tickets">Tickets</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="proposals">Proposals</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
@@ -277,6 +280,74 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                       <td className="px-4 py-3 text-muted-foreground">{p.billing_type || '—'}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tickets" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Ticket</th>
+                    <th className="px-4 py-3 font-medium">Title</th>
+                    <th className="px-4 py-3 font-medium">Project</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Priority</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((t) => (
+                    <tr key={t.id} className="border-b text-sm hover:bg-accent/30">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.ticket_number}</td>
+                      <td className="px-4 py-3 font-medium">{t.title}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs">{t.project_name || '—'}</span>
+                          {t.project_repo && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">{t.project_repo}</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className={`text-[10px] ${
+                          t.priority === 'Urgent' ? 'border-red-500 text-red-500' :
+                          t.priority === 'High' ? 'border-orange-500 text-orange-500' :
+                          t.priority === 'Medium' ? 'border-amber-500 text-amber-500' :
+                          'border-zinc-400 text-zinc-400'
+                        }`}>{t.priority}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
+                      <td className="px-4 py-3">
+                        {t.created_issue_url && (
+                          <a href={t.created_issue_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                            GH <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {tickets.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="rounded-full bg-muted p-2.5 w-fit mx-auto">
+                            <ListTodo className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm font-medium">No tickets</p>
+                          <p className="text-xs text-muted-foreground">
+                            This client has no support tickets yet.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </CardContent>

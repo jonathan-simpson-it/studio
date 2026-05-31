@@ -385,7 +385,7 @@ export default function CalendarClient({
         </div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1 min-w-0 overflow-x-auto">
           {view === 'month' && (
             <MonthView
@@ -423,7 +423,7 @@ export default function CalendarClient({
           )}
         </div>
 
-        <div className="w-64 flex-shrink-0 space-y-3">
+        <div className="w-full md:w-64 flex-shrink-0 space-y-3">
           <Button className="w-full" onClick={() => openCreate()}>
             <Plus className="mr-2 h-4 w-4" /> New Event
           </Button>

@@ -263,7 +263,7 @@ We look forward to the opportunity to work with you.
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Client</Label>
               <Select value={proposal.client_id} onValueChange={(v) => handleField('client_id', v)}>
@@ -333,7 +333,7 @@ We look forward to the opportunity to work with you.
       </Card>
 
       {(proposal.cover_note !== null || proposal.scope_of_work !== null || proposal.timeline !== null || proposal.payment_terms !== null) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader><CardTitle className="text-sm">Cover Note</CardTitle></CardHeader>
             <CardContent><MarkdownEditor value={proposal.cover_note || ''} onChange={(v) => handleField('cover_note', v)} minHeight={150} /></CardContent>

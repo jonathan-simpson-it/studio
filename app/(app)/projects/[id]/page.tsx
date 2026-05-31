@@ -1,10 +1,10 @@
 'use client';
 
-import { use, useState, useCallback } from 'react';
+import { use, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getProject, createTask, createMilestone, updateProject, deleteProject, updateMilestone, deleteMilestone, updateTask, deleteTask } from '@/lib/db/actions/projects';
+import { getProject, getProjectBudgetProgress, createTask, createMilestone, updateProject, deleteProject, updateMilestone, deleteMilestone, updateTask, deleteTask, linkRepoToProject, unlinkRepoFromProject } from '@/lib/db/actions/projects';
 import { createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,12 +52,13 @@ import {
   Plus,
   GitBranch,
   ExternalLink,
-  Clock,
   CheckCircle2,
-  ListTodo,
   Trash2,
   Pencil,
-  X,
+  RefreshCw,
+  Link,
+  Unlink,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRecord, Proposal, Invoice, ActivityLog, ProjectRepo } from '@/types';
@@ -70,6 +71,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [showNewMilestone, setShowNewMilestone] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showLinkRepo, setShowLinkRepo] = useState(false);
+  const [syncingRepo, setSyncingRepo] = useState<string | null>(null);
+  const [justSynced, setJustSynced] = useState<string | null>(null);
+  const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [editMilestone, setEditMilestone] = useState<Milestone | null>(null);
   const [taskSearch, setTaskSearch] = useState('');
@@ -82,6 +87,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => getProject(id),
   });
 
+  const { data: budgetProgress } = useQuery({
+    queryKey: ['project-budget', id],
+    queryFn: () => getProjectBudgetProgress(id),
+    enabled: !!project?.budget,
+  });
+
   const tasks = (project?.tasks ?? []) as Task[];
   const issues = (project?.syncedIssues ?? []) as SyncedGithubIssue[];
   const milestones = (project?.milestones ?? []) as Milestone[];
@@ -91,6 +102,79 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const invoices = (project?.invoices ?? []) as Invoice[];
   const repos = (project?.repos ?? []) as ProjectRepo[];
   const activities: ActivityLog[] = [];
+
+  const syncedIssueCount = (repoId?: string) => {
+    if (!repoId) return issues.filter((i) => i.state === 'open').length;
+    return issues.filter((i) => i.repo_id === repoId && i.state === 'open').length;
+  };
+
+  useEffect(() => {
+    if (repos.length > 0) {
+      fetch('/api/github/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: id }),
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['project', id] });
+      }).catch(() => {});
+    }
+  }, [id]);
+
+  function formatRelativeTime(date: string | Date): string {
+    const now = Date.now();
+    const then = new Date(date).getTime();
+    const diff = now - then;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+
+  function getSyncStatus(repoId: string): { label: string; color: string } {
+    const repoIssues = issues.filter((i) => i.repo_id === repoId);
+    if (repoIssues.length === 0) return { label: 'No synced issues', color: 'text-zinc-500' };
+    const latest = repoIssues.reduce((a, b) =>
+      new Date(a.synced_at) > new Date(b.synced_at) ? a : b
+    );
+    const elapsed = Date.now() - new Date(latest.synced_at).getTime();
+    if (elapsed < 3600000) return { label: `Synced ${formatRelativeTime(latest.synced_at)}`, color: 'text-green-500' };
+    if (elapsed < 86400000) return { label: `Synced ${formatRelativeTime(latest.synced_at)}`, color: 'text-amber-500' };
+    return { label: `Synced ${formatRelativeTime(latest.synced_at)}`, color: 'text-red-500' };
+  }
+
+  async function handleSyncRepo(repoId: string) {
+    setSyncingRepo(repoId);
+    try {
+      const res = await fetch('/api/github/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: id }),
+      });
+      if (!res.ok) throw new Error('Sync failed');
+      const data = await res.json();
+      setJustSynced(repoId);
+      setTimeout(() => setJustSynced(null), 1500);
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      toast.success(`Synced${data.ticketsCreated ? `, created ${data.ticketsCreated} ticket(s)` : ''}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncingRepo(null);
+    }
+  }
+
+  async function handleUnlinkRepo(repoId: string) {
+    try {
+      await unlinkRepoFromProject(repoId);
+      toast.success('Repository unlinked');
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to unlink');
+    }
+  }
 
   async function handleSaveProject(field: string, value: unknown) {
     if (!project) return;
@@ -223,7 +307,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       <Card>
-        <CardContent className="p-6 grid grid-cols-2 gap-6 text-sm">
+        <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
           <div className="space-y-2">
             <Label>Project Name</Label>
             <Input
@@ -309,7 +393,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks & Issues</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
@@ -328,32 +412,161 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Card>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Tasks</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{totalTasks}</p></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Open Issues</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{issues.filter((i) => i.state === 'open').length}</p></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Milestones</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{milestonesCompleted}/{totalMilestones} complete</p></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Budget</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{project.budget ? formatCurrency(project.budget, project.currency) : '—'}</p></CardContent></Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs text-muted-foreground">Budget</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{project.budget ? formatCurrency(project.budget, project.currency) : '—'}</p>
+                {budgetProgress && project.budget > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          budgetProgress.percentUsed > 100
+                            ? 'bg-destructive'
+                            : budgetProgress.percentUsed > 80
+                            ? 'bg-warning'
+                            : 'bg-primary'
+                        }`}
+                        style={{ width: `${Math.min(100, budgetProgress.percentUsed)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>{formatCurrency(budgetProgress.spent, project.currency)} spent</span>
+                      <span className={budgetProgress.remaining <= 0 ? 'text-destructive font-medium' : ''}>
+                        {budgetProgress.remaining > 0
+                          ? `${formatCurrency(budgetProgress.remaining, project.currency)} left`
+                          : 'Over budget'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Days Since Start</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{daysSinceStart}</p></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Status</CardTitle></CardHeader><CardContent><StatusBadge status={project.status} /></CardContent></Card>
           </div>
 
-          {repos.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Linked Repositories</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {repos.map((r) => (
-                    <div key={r.id} className="flex items-center gap-2 text-sm">
-                      <GitBranch className="h-4 w-4 text-muted-foreground" />
-                      <a href={r.github_repo_url || '#'} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        {r.full_name}
-                      </a>
-                    </div>
-                  ))}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-muted-foreground" />
+                  GitHub Repositories
+                  {repos.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                      {syncedIssueCount()} open issues
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setShowLinkRepo(true)}>
+                  <Link className="mr-1.5 h-3.5 w-3.5" /> Link Repo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {repos.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-8 text-center">
+                  <div className="rounded-full bg-muted p-3">
+                    <GitBranch className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">No repositories linked</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Link a GitHub repo to sync issues and create tickets from this project.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="default" onClick={() => setShowLinkRepo(true)}>
+                    <Link className="mr-1.5 h-3.5 w-3.5" /> Link a Repository
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="space-y-2">
+                  {repos.map((r) => {
+                    const status = getSyncStatus(r.id);
+                    return (
+                      <div
+                        key={r.id}
+                        className="group flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent/30"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`h-2 w-2 shrink-0 rounded-full ${status.color.replace('text-', 'bg-')}`} />
+                          <div className="min-w-0">
+                            {r.github_repo_url ? (
+                              <a
+                                href={r.github_repo_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-primary hover:underline truncate block"
+                              >
+                                {r.full_name}
+                              </a>
+                            ) : (
+                              <span className="font-medium truncate block">
+                                {r.full_name}
+                              </span>
+                            )}
+                            <p className={`text-[10px] mt-0.5 ${status.color}`}>{status.label}</p>
+                          </div>
+                        </div>
+                        <div className="relative flex items-center gap-1 shrink-0 ml-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            disabled={syncingRepo === r.id}
+                            onClick={() => handleSyncRepo(r.id)}
+                            title="Sync issues"
+                          >
+                            {justSynced === r.id ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-500 transition-all duration-300" />
+                            ) : (
+                              <RefreshCw className={`h-3.5 w-3.5 ${syncingRepo === r.id ? 'animate-spin' : ''}`} />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Unlink repository"
+                            onClick={() => setConfirmUnlink(r.id)}
+                          >
+                            <Unlink className="h-3.5 w-3.5" />
+                          </Button>
+                          {confirmUnlink === r.id && (
+                            <div className="absolute right-0 top-8 z-50 flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
+                              <span className="text-muted-foreground">Unlink {r.full_name}?</span>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-7 text-[10px] px-2"
+                                onClick={() => { handleUnlinkRepo(r.id); setConfirmUnlink(null); }}
+                              >
+                                Unlink
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[10px] px-2"
+                                onClick={() => setConfirmUnlink(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="flex justify-end">
             <AIGenerateButton
@@ -362,6 +575,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onResult={(content) => toast.success('Summary generated')}
             />
           </div>
+
+          <LinkRepoDialog
+            open={showLinkRepo}
+            onOpenChange={setShowLinkRepo}
+            projectId={id}
+            onLinked={() => {
+              setShowLinkRepo(false);
+              fetch('/api/github/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: id }),
+              }).then(() => {
+                queryClient.invalidateQueries({ queryKey: ['project', id] });
+              }).catch(() => {});
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="tasks" className="space-y-4">
@@ -681,6 +910,168 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         onConfirm={handleDeleteProject}
       />
     </div>
+  );
+}
+
+function LinkRepoDialog({
+  open,
+  onOpenChange,
+  projectId,
+  onLinked,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectId: string;
+  onLinked: () => void;
+}) {
+  const [mode, setMode] = useState<'org' | 'manual'>('org');
+  const [orgRepos, setOrgRepos] = useState<{ full_name: string; name: string; html_url: string }[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState('');
+  const [manualOwner, setManualOwner] = useState('');
+  const [manualRepo, setManualRepo] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && mode === 'org') {
+      fetchRepos();
+    }
+  }, [open, mode]);
+
+  async function fetchRepos() {
+    setLoadingRepos(true);
+    setError('');
+    try {
+      const res = await fetch('/api/github/repos');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to fetch repos');
+      }
+      const data = await res.json();
+      setOrgRepos(data.repos || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed');
+      setOrgRepos([]);
+    } finally {
+      setLoadingRepos(false);
+    }
+  }
+
+  async function handleLink() {
+    setLinking(true);
+    setError('');
+    try {
+      if (mode === 'org') {
+        if (!selectedRepo) throw new Error('Select a repo');
+        const [owner, name] = selectedRepo.split('/');
+        await linkRepoToProject({ project_id: projectId, github_repo_owner: owner, github_repo_name: name });
+      } else {
+        if (!manualOwner.trim() || !manualRepo.trim()) throw new Error('Enter owner and repo name');
+        await linkRepoToProject({
+          project_id: projectId,
+          github_repo_owner: manualOwner.trim(),
+          github_repo_name: manualRepo.trim(),
+        });
+      }
+      toast.success('Repository linked');
+      onLinked();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to link repo');
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Link GitHub Repository</DialogTitle>
+          <DialogDescription>Attach a GitHub repo to this project for issue syncing.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="flex gap-2">
+            <Button variant={mode === 'org' ? 'default' : 'outline'} size="sm" onClick={() => setMode('org')}>
+              Org Repos
+            </Button>
+            <Button variant={mode === 'manual' ? 'default' : 'outline'} size="sm" onClick={() => setMode('manual')}>
+              Manual Entry
+            </Button>
+          </div>
+
+          {mode === 'org' ? (
+            <div className="space-y-2">
+              <Label>Select Repository</Label>
+              {loadingRepos ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading repos...
+                </div>
+              ) : orgRepos.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  {error || 'No repos found. Configure org name in Settings > Integrations.'}
+                </p>
+              ) : (
+                <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a repo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgRepos.map((r) => (
+                      <SelectItem key={r.full_name} value={r.full_name}>
+                        {r.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {!loadingRepos && orgRepos.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={fetchRepos} className="text-xs">
+                  <RefreshCw className="h-3 w-3 mr-1" /> Refresh
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Owner (user or org)</Label>
+                <Input
+                  value={manualOwner}
+                  onChange={(e) => setManualOwner(e.target.value)}
+                  placeholder="e.g. jonathansimpsons-co"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Repository Name</Label>
+                <Input
+                  value={manualRepo}
+                  onChange={(e) => setManualRepo(e.target.value)}
+                  placeholder="e.g. client-website"
+                />
+              </div>
+              {manualOwner && manualRepo && (
+                <p className="text-xs text-muted-foreground">
+                  Will link: <code className="bg-muted px-1 rounded">{manualOwner}/{manualRepo}</code>
+                </p>
+              )}
+            </div>
+          )}
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button
+              onClick={handleLink}
+              disabled={linking || (mode === 'org' ? !selectedRepo : !manualOwner || !manualRepo)}
+            >
+              {linking ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Link className="h-4 w-4 mr-1" />}
+              Link Repository
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

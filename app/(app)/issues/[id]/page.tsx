@@ -4,6 +4,8 @@ import { use, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTicket, updateTicket, deleteTicket, getAllTicketTags } from '@/lib/db/actions/tickets';
+import { listFounders } from '@/lib/db/actions/settings';
+import { FounderMultiSelect } from '@/components/shared/FounderMultiSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,6 +51,11 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   const { data: allTags = [] } = useQuery({
     queryKey: ['issue-tags'],
     queryFn: getAllTicketTags,
+  });
+
+  const { data: founders = [] } = useQuery({
+    queryKey: ['founders'],
+    queryFn: listFounders,
   });
 
   const availableTags = useMemo(
@@ -111,7 +118,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
@@ -143,6 +150,13 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Assignees</Label>
+              <FounderMultiSelect
+                value={ticket.assignee_ids || []}
+                onChange={(ids) => handleSave('assignee_ids', ids)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Client Name</Label>
@@ -231,10 +245,6 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           {ticket.original_message && (
-            <Separator />
-          )}
-
-          {ticket.original_message && (
             <div className="space-y-2">
               <Label className="text-muted-foreground">Original Message</Label>
               <div className="w-full rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground whitespace-pre-wrap">
@@ -251,7 +261,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           <div className="space-y-3">
             {ticket.created_task_id && (
               <a
-                href={`/tasks`}
+                href={`/tasks/${ticket.created_task_id}`}
                 className="flex items-center gap-2 text-sm text-primary hover:underline"
               >
                 <LinkIcon className="h-4 w-4" />

@@ -93,17 +93,27 @@ export async function getCurrentUser() {
   return user ? toPlain(user) : null;
 }
 
+export interface FounderItem {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+  github_username: string | null;
+}
+
 export async function listFounders() {
   await connect();
   const users = await User.find({ role: 'founder' })
-    .select('full_name email google_email')
+    .select('full_name email avatar_url github_username')
     .sort({ full_name: 1 })
     .lean({ virtuals: true });
   return users.map((u: any) => ({
     id: u._id.toString(),
     name: u.full_name,
     email: u.email,
-  }));
+    avatar_url: u.avatar_url || null,
+    github_username: u.github_username || null,
+  })) satisfies FounderItem[];
 }
 
 export async function getAgencySettings() {

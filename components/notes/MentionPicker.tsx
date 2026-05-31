@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { searchEntities } from '@/lib/db/actions/search';
 import { FolderKanban, Building2, FileText, Loader2 } from 'lucide-react';
@@ -35,7 +35,7 @@ export function MentionPicker({ search, onSelect, onClose }: MentionPickerProps)
     queryKey: ['search-entities', search],
     queryFn: () => searchEntities(search),
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
+    placeholderData: (prev) => prev,
   });
 
   const results = useMemo(() => {

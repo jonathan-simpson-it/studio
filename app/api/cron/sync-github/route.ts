@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllGithubIssues } from '@/lib/db/actions/projects';
+import { syncTicketStatusWithGithub } from '@/lib/db/actions/tickets';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -10,8 +11,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await syncAllGithubIssues();
-    return NextResponse.json(result);
+    const [issuesResult, ticketSyncResult] = await Promise.all([
+      syncAllGithubIssues(),
+      syncTicketStatusWithGithub(),
+    ]);
+    return NextResponse.json({ ...issuesResult, ticketStatusSync: ticketSyncResult });
   } catch (error) {
     console.error('GitHub sync error:', error);
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });

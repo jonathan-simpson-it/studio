@@ -1,12 +1,12 @@
 'use client';
 
-import { use, useState, useMemo, useEffect } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getLeadDetail, createActivityLog, convertLeadToClient } from '@/lib/db/actions/details';
 import { updateLead, updateLeadStage, deleteLead } from '@/lib/db/actions/leads';
-import { createClient as createDbClient, getClient } from '@/lib/db/actions/clients';
+import { createClient as createDbClient } from '@/lib/db/actions/clients';
 import { createProject } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +33,7 @@ import { HeatScore } from '@/components/shared/HeatScore';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { calculateHeatScore } from '@/lib/heat-score';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { ArrowLeft, ExternalLink, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
@@ -166,17 +166,19 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <ArrowLeft className="mr-2 h-4 w-4" /> Back
       </Button>
 
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold">{lead.company_name}</h2>
-            <StatusBadge status={lead.stage} />
-            <HeatScore score={heatScore} size="lg" />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-xl font-semibold truncate">{lead.company_name}</h2>
+              <StatusBadge status={lead.stage} />
+              <HeatScore score={heatScore} size="lg" />
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{lead.contact_name}</p>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{lead.contact_name}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {lead.stage === 'Won' && !lead.converted_at && (
             <Button onClick={() => setShowConvert(true)}>
               <ExternalLink className="mr-2 h-4 w-4" /> Convert to Client
@@ -206,7 +208,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Stage</Label>
               <Select

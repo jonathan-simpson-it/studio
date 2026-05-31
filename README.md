@@ -114,26 +114,48 @@ Open `http://localhost:3000`, click **Register**, enter your invite code and cre
 |---|---|---|
 | `/login` | Auth (centered card) | Email/password sign-in page |
 | `/register` | Auth (centered card) | Registration with invite code |
-| `/dashboard` | App shell (sidebar + topbar) | Landing page with greeting, stat cards, upcoming milestones, recent activity, active projects, personal tasks |
-| `/leads` | App shell | Lead pipeline: Kanban board by stage or sortable table. Create leads via slide-out sheet |
+| `/dashboard` | App shell | Landing page with greeting, stat cards, upcoming milestones, recent activity, active projects, personal tasks |
+| `/activity` | App shell | Full audit log viewer with entity type filter and pagination |
+| `/import` | App shell | CSV data import: upload → preview → column mapping → import leads |
+| `/leads` | App shell | Lead pipeline: Kanban board by stage or sortable table with checkbox bulk actions. Create leads via slide-out sheet. Export to CSV. |
 | `/leads/[id]` | App shell | Full lead detail: editable form, heat score (client-side algorithm), activity timeline, convert-to-client dialog |
 | `/clients` | App shell | Client table: company, primary contact, active projects, revenue, outstanding, services. Toggle to show internal JSCo client |
-| `/clients/[id]` | App shell | Client detail with 6 tabs: Projects, Invoices, Proposals, Notes, Files, Activity |
+| `/clients/[id]` | App shell | Client detail with 7 tabs: Projects, Tickets, Invoices, Proposals, Notes, Files, Activity |
 | `/projects` | App shell | Default landing page. Filterable table: name, client, status, billing type, repos, issues, due date |
-| `/projects/[id]` | App shell | Project detail with 8 tabs: Overview (key stats, repos, AI summary), Tasks & Issues (mixed internal + GitHub board), Milestones (progress bars), Notes, Files, Proposals, Invoices, Activity |
-| `/tasks` | App shell | Global task board: Todo / In Progress / Bottlenecked / Done. Table toggle. Internal tasks only (GitHub issues are project-scoped) |
+| `/projects/[id]` | App shell | Project detail with 8 tabs: Overview (key stats, repos, AI summary, budget vs actual progress bar), Tasks & Issues, Milestones, Notes, Files, Proposals, Invoices, Activity |
+| `/tasks` | App shell | Global task board: Todo / In Progress / Bottlenecked / Done. Table toggle. Recurring tasks auto-generate on completion. |
 | `/notes` | App shell | Grid of all visible notes. Search by title/body. Visibility filtering |
 | `/notes/[id]` | App shell | Full markdown editor: GitHub-style formatting toolbar, preview toggle, visibility controls, linked records |
 | `/proposals` | App shell | Proposal list table: number, client, status, total, dates |
 | `/proposals/[id]` | App shell | Full proposal editor: line items, discount, markdown sections, AI generate button, status workflow, auto-creates project + invoice on accept |
-| `/invoices` | App shell | Invoice list with outstanding total card at top |
+| `/invoices` | App shell | Invoice list with outstanding total card at top. Export to CSV. |
 | `/invoices/[id]` | App shell | Full invoice editor: line items, discount, tax, recurring, AI generate, status workflow, payment notes |
 | `/finance` | App shell | Summary cards, quarterly bar chart, by-client table, costs table with add-cost sheet |
-| `/calendar` | App shell | Multi-calendar view with Google Calendar sync and ICS export |
+| `/calendar` | App shell | Multi-calendar view with Google Calendar sync and ICS export. Month/Week/Year views. |
 | `/issues` | App shell | Ticket pipeline with AI triage, auto-task creation, GitHub issue sync |
 | `/inbox` | App shell | Gmail inbox with AI importance/action-needed classification |
-| `/portal` | Public (no auth) | Client ticket lookup and creation by email |
-| `/settings` | App shell | 5 tabs: Profile, Agency, Integrations, Templates, Team |
+| `/portal` | Public (no auth) | Client portal with tabs for Tickets, Projects, and Invoices |
+| `/settings` | App shell | 7 tabs: Profile, Connections, Agency, Integrations, Templates, Team, API Keys |
+
+### Key Features
+
+| Feature | Status | Description |
+|---|---|---|
+| **Bulk Actions** | ✅ | Checkbox column + action bar on table views. Bulk delete, select all, clear selection. |
+| **Export CSV** | ✅ | One-click CSV download on leads and invoices pages. Customizable column mapping. |
+| **Undo/Redo** | ✅ | `useUndoAction` hook — wraps any action with an undo toast (5-second window). |
+| **Audit Log** | ✅ | Dedicated `/activity` page with entity type filter and paginated timeline. |
+| **Budget vs Actual** | ✅ | Progress bar on project detail showing budget, spent, remaining. Three-color coding. |
+| **Notifications** | ✅ | Bell badge with counts. Polls every 5min for overdue tasks, stale leads, due invoices. |
+| **Client Portal** | ✅ | `/portal` with tabs: Tickets, Projects, Invoices. Email-based lookup. |
+| **Data Import CSV** | ✅ | Upload → preview → column mapping → import leads. Error handling per row. |
+| **Recurring Tasks** | ✅ | Task model supports `is_recurring` (daily/weekly/monthly). Auto-generates next instance on completion. |
+| **Mobile Support** | ✅ | Responsive layout: hamburger drawer, bottom tab bar (5 tabs), floating `+` FAB for quick-create. |
+| **Keyboard Shortcuts** | ✅ | `N` tasks, `L` leads, `P` projects, `?` help modal, `Esc` close, `⌘K` command palette. |
+| **Onboarding** | ✅ | 4-step guided tour on first visit (skipable, localStorage-tracked). |
+| **Breadcrumbs** | ✅ | Navigation breadcrumbs on all detail pages. |
+| **Print Styles** | ✅ | `@media print` hides chrome (nav, buttons, fixed bars). Clean document output. |
+| **Accessibility** | ✅ | `aria-label` on all icon buttons, `aria-current` on nav, skip-to-content link, touch targets ≥44px, focus rings, reduced-motion support. |
 
 ### API Routes
 
@@ -265,3 +287,146 @@ See `MANUAL_SETUP.md` for the complete setup guide covering:
 - Things the build cannot do (and must be done manually)
 
 The app is designed to deploy to Vercel with zero configuration changes. Cron jobs are configured in `vercel.json`.
+
+---
+
+## OpenCode Instructions
+
+This section is for AI coding assistants (like OpenCode) that edit this codebase.
+
+### Before making changes
+
+1. Read this file to understand the full project structure
+2. Read the relevant files you need to modify
+3. Check existing patterns: Server Components for data fetching, Client Components for interactivity, Server Actions for mutations, Route Handlers for API endpoints
+4. Check `AGENTS.md` for any additional agent rules
+5. Run `npm run lint` after making any code changes
+
+### Complete file structure
+
+```
+studio/
+├── app/                               # Next.js App Router
+│   ├── (app)/                         # Authenticated app shell
+│   │   ├── activity/                  # Audit log viewer with filtering and pagination
+│   │   ├── import/                    # CSV data import (upload → preview → mapping → import)
+│   │   ├── calendar/                  # Calendar page + views (MonthView, WeekView, YearView, EventModal, etc.)
+│   │   ├── clients/                   # Client list + detail with 7 tabs
+│   │   ├── dashboard/                 # Dashboard (stat cards, milestones, projects, tasks, activity)
+│   │   ├── finance/                   # Finance summary
+│   │   ├── inbox/                     # Gmail inbox
+│   │   ├── invoices/                  # Invoice list + editor
+│   │   ├── issues/                    # Ticket pipeline (list + detail)
+│   │   ├── leads/                     # Lead pipeline (kanban/table + detail, bulk actions)
+│   │   ├── notes/                     # Notes grid + markdown editor
+│   │   ├── projects/                  # Projects list + detail with 8 tabs (budget vs actual)
+│   │   ├── proposals/                 # Proposal list + editor
+│   │   ├── settings/                  # Settings (profile, connections, agency, integrations, templates, team, api keys)
+│   │   ├── tasks/                     # Global task board (kanban/table + detail, recurring tasks)
+│   │   ├── layout.tsx                 # App shell layout (sidebar + topbar + mobile bottom bar + FAB)
+│   │   ├── loading.tsx                # App shell loading state
+│   │   └── error.tsx                  # App shell error boundary
+│   ├── (auth)/                        # Auth routes
+│   │   ├── login/page.tsx             # Email/password sign-in
+│   │   ├── register/page.tsx          # Registration with invite code
+│   │   ├── layout.tsx                 # Auth layout (centered card)
+│   │   └── loading.tsx                # Auth loading state
+│   ├── (public)/                      # Public routes (no auth)
+│   │   └── portal/page.tsx            # Client ticket lookup
+│   ├── api/                           # Route handlers (28 endpoints)
+│   │   ├── ai/generate/route.ts       # AI content generation (12 action types)
+│   │   ├── ai/models/route.ts         # List registered models
+│   │   ├── ai/test-model/route.ts     # Ping a model
+│   │   ├── auth/                      # Auth.js callbacks, disconnect, invite validation
+│   │   ├── calendar-sources/route.ts  # Calendar source CRUD
+│   │   ├── calendars/                 # Calendar CRUD, members, google-calendars, ICS feed
+│   │   ├── cron/                      # Vercel cron: check-overdue, send-reminders, sync-* (6 routes)
+│   │   ├── events/                    # Event CRUD, comments, conflict check
+│   │   ├── expenses/                  # Expense CRUD
+│   │   ├── files/                     # GridFS upload/delete/serve
+│   │   ├── github/                    # GitHub issues, repos, sync
+│   │   ├── google/calendars/route.ts  # List Google calendars
+│   │   ├── invoices/pdf/route.ts      # Invoice PDF generation
+│   │   ├── keys/route.ts              # API key management
+│   │   ├── leads/route.ts             # Lead creation (API key auth)
+│   │   ├── ocr/extract/route.ts       # OCR text extraction
+│   │   ├── ocr/parse/route.ts         # Parse extracted text
+│   │   ├── proposals/pdf/route.ts     # Proposal PDF generation
+│   │   ├── reminders/                 # Reminder CRUD + pending
+│   │   └── tickets/route.ts           # Ticket CRUD
+│   ├── layout.tsx                     # Root layout (providers, fonts, theme)
+│   ├── page.tsx                       # Root page (redirects to login)
+│   ├── globals.css                    # Tailwind v4 global styles
+│   ├── error.tsx                      # Root error boundary
+│   ├── global-error.tsx               # Global error boundary
+│   └── not-found.tsx                  # 404 page
+├── components/                        # React components
+│   ├── layout/                        # Sidebar, TopBar, UserMenu, MobileBottomBar, MobileNavDrawer, NotificationsMenu, QuickCreateFAB, CommandMenu
+│   ├── shared/                        # Reusable: MarkdownEditor, MarkdownPreview, KanbanBoard, KanbanCard, ActivityTimeline, AIGenerateButton, FileUpload, HeatScore, CurrencyBadge, StatusBadge, Breadcrumbs, BulkActionBar, OnboardingTour, KeyboardShortcuts
+│   ├── ui/                            # shadcn/ui primitives: avatar, badge, button, card, checkbox, dialog, dropdown-menu, input, label, popover, scroll-area, select, separator, sheet, skeleton, switch, tabs, textarea, tooltip
+│   ├── extensions/                    # TipTap editor extensions: CommandMenu, MentionExtension, MentionList, SlashCommand
+│   ├── notes/                         # MentionPicker, SlashCommandMenu
+│   ├── Providers.tsx                  # App providers (SessionProvider, ThemeProvider, Toaster)
+│   └── QueryProvider.tsx              # React Query provider
+├── lib/                               # Server-side logic
+│   ├── db/
+│   │   ├── connect.ts                 # MongoDB/Mongoose connection (cached)
+│   │   ├── index.ts                   # Re-exports
+│   │   ├── to-plain.ts                # Converts Mongoose docs to plain objects
+│   │   ├── models/                    # 8 schema files
+│   │   │   ├── core.ts                # User, ApiKey
+│   │   │   ├── crm.ts                 # Lead, Client, Contact
+│   │   │   ├── projects.ts            # Project, Milestone, ProjectRepo, ProjectTemplate (Task: is_recurring, recurring_frequency, next_due)
+│   │   │   ├── docs.ts                # Note, Proposal, Invoice
+│   │   │   ├── calendar.ts            # Calendar, Event, Reminder, DailyExpense
+│   │   │   ├── tickets.ts             # Ticket
+│   │   │   ├── google.ts              # GoogleInbox, InboxMessage
+│   │   │   └── meta.ts                # ActivityLog, AgencySettings, Integration, DocNumberSequence, TimeEntry, EventComment, OcrTask
+│   │   └── actions/                   # 13 server action files: leads, clients, projects, invoices, notes, calendar, email, finance, google, search, settings, tickets, details
+│   ├── auth/                          # api-key.ts, invite.ts, password.ts
+│   ├── google/                        # calendar.ts, calendar-write.ts, client.ts, gmail.ts, summarize.ts
+│   ├── calendar-engine/               # conflicts.ts, ics.ts, ics-parse.ts, recurrence.ts
+│   ├── parser/                        # nlp.ts, ocr.ts
+│   ├── storage/                       # gridfs.ts (upload, download, stream, delete)
+│   ├── ai.ts                          # OpenRouter AI provider wrapper (12 action types)
+│   ├── github.ts                      # Octokit GitHub API client
+│   ├── pdf.tsx                        # @react-pdf/renderer branded templates
+│   ├── resend.ts                      # Email sending via Resend
+│   ├── heat-score.ts                  # Lead heat score algorithm (1-5, client-side)
+│   ├── export-csv.ts                  # CSV export utility
+│   └── utils.ts                       # cn(), formatCurrency(), etc.
+├── hooks/                             # useHotkeys.ts (keyboard shortcuts), useBulkSelection.ts, useUndoAction.ts
+├── types/                             # index.ts (all shared TypeScript types)
+├── tests/                             # Playwright E2E tests (17 spec files)
+│   ├── ai.spec.ts, auth.spec.ts, clients.spec.ts, email.spec.ts, errors.spec.ts
+│   ├── finance.spec.ts, invoices.spec.ts, layout.spec.ts, leads.spec.ts
+│   ├── notes.spec.ts, projects.spec.ts, proposals.spec.ts, settings.spec.ts
+│   ├── tasks.spec.ts, tickets.spec.ts, ui-ux.spec.ts
+│   ├── helpers.ts                     # Test helpers
+│   └── global-setup.ts                # Global test setup
+├── scripts/                           # seed-finance.ts, seed-test-tickets.ts
+├── public/                            # JSC-logo.png/svg, favicons, site.webmanifest, app icons
+├── auth.ts                            # Auth.js v5 configuration
+├── next.config.ts                     # Next.js configuration
+├── eslint.config.mjs                  # ESLint flat config
+├── postcss.config.mjs                 # PostCSS config (Tailwind v4)
+├── proxy.ts                           # Proxy/tunnel helpers
+├── tsconfig.json                      # TypeScript config
+├── vercel.json                        # Vercel deployment + cron schedule
+├── package.json                       # Dependencies + scripts
+├── AGENTS.md                          # AI agent rules
+├── MANUAL_SETUP.md                    # Complete manual setup guide
+└── README.md                          # This file
+```
+
+### After making changes
+
+Always update the file structure diagram above when your changes affect any of:
+
+- **Routes**: Pages added or removed in `app/`
+- **API endpoints**: Route handlers added or removed in `app/api/`
+- **Components**: New files in `components/` (especially domain-specific ones)
+- **Libraries**: New files in `lib/` or new models/actions in `lib/db/`
+- **Types**: New type definitions in `types/`
+
+This keeps the README accurate so a full codebase dive is not always needed on subsequent sessions.

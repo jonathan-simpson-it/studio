@@ -23,6 +23,7 @@ import {
   Calendar,
   Inbox,
   GitPullRequestArrow,
+  Keyboard,
 } from 'lucide-react';
 import { getInboxStats } from '@/lib/db/actions/email';
 
@@ -54,7 +55,7 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
   const unreadCount = stats?.unread ?? 0;
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-full w-60 flex-col border-r bg-background">
+    <aside className="fixed left-0 top-0 z-40 hidden md:flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <Image src="/JSC-logo.svg" alt="JSC" width={24} height={24} className="h-6 w-6 rounded" />
         <div className="flex flex-col leading-tight">
@@ -78,59 +79,78 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1.5 px-2 py-2">
-        {navItems.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <span
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                pathname.startsWith(item.href)
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground'
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </span>
-          </Link>
-        ))}
+      <nav className="flex-1 space-y-1.5 px-2 py-2" aria-label="Main navigation">
+        {navItems.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined}>
+              <span
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent min-h-[44px]',
+                  isActive
+                    ? 'bg-accent text-accent-foreground border-l-2 border-primary pl-[10px]'
+                    : 'text-muted-foreground pl-3'
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
 
       <Separator />
 
-      <nav className="space-y-1.5 px-2 py-2">
-        {navItemsSecondary.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <span
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                pathname.startsWith(item.href)
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground'
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              <span className="flex-1">{item.label}</span>
-              {item.href === '/inbox' && unreadCount > 0 && (
-                <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px]">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Badge>
-              )}
-            </span>
-          </Link>
-        ))}
+      <nav className="space-y-1.5 px-2 py-2" aria-label="Secondary navigation">
+        {navItemsSecondary.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined}>
+              <span
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent min-h-[44px]',
+                  isActive
+                    ? 'bg-accent text-accent-foreground border-l-2 border-primary pl-[10px]'
+                    : 'text-muted-foreground pl-3'
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                <span className="flex-1">{item.label}</span>
+                {item.href === '/inbox' && unreadCount > 0 && (
+                  <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Badge>
+                )}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
 
       <Separator />
 
-      <div className="px-2 py-2">
-        <Link href="/settings">
+      <div className="px-2 py-2 space-y-1">
+        <Link href="/shortcuts">
           <span
             className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent min-h-[44px]',
+              pathname.startsWith('/shortcuts')
+                ? 'bg-accent text-accent-foreground border-l-2 border-primary pl-[10px]'
+                : 'text-muted-foreground pl-3'
+            )}
+          >
+            <Keyboard className="h-4 w-4" />
+            Shortcuts
+          </span>
+        </Link>
+        <Link href="/settings" aria-current={pathname.startsWith('/settings') ? 'page' : undefined}>
+          <span
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent min-h-[44px]',
               pathname.startsWith('/settings')
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground'
+                ? 'bg-accent text-accent-foreground border-l-2 border-primary pl-[10px]'
+                : 'text-muted-foreground pl-3'
             )}
           >
             <Settings className="h-4 w-4" />

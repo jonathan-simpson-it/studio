@@ -72,11 +72,11 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search projects..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
+            <Input placeholder="Search projects..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-64 pl-9" />
           </div>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -119,7 +119,7 @@ export default function ProjectsPage() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
@@ -127,9 +127,7 @@ export default function ProjectsPage() {
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Billing</th>
-                <th className="px-4 py-3 font-medium">Repos</th>
-                <th className="px-4 py-3 font-medium">Issues</th>
-                <th className="px-4 py-3 font-medium">Due Date</th>
+                <th className="px-4 py-3 font-medium">Owner</th>
               </tr>
             </thead>
             <tbody>

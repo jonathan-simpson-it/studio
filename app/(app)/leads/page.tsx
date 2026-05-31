@@ -33,7 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import { BulkActionBar } from '@/components/shared/BulkActionBar';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import { Checkbox } from '@/components/ui/checkbox';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { exportToCSV } from '@/lib/export-csv';
 import {
   Plus,
   MoreHorizontal,
@@ -99,15 +103,18 @@ function LeadCardContent({ lead }: { lead: Lead }) {
   );
 }
 
-function LeadTable({ leads, onDelete }: { leads: Lead[]; onDelete: (lead: Lead) => void }) {
+function LeadTable({ leads, onDelete, isSelected, toggle, allSelected, selectAll }: { leads: Lead[]; onDelete: (lead: Lead) => void; isSelected: (id: string) => boolean; toggle: (id: string) => void; allSelected: boolean; selectAll: () => void }) {
   const router = useRouter();
 
   return (
     <Card>
-      <CardContent className="p-0">
+      <CardContent className="p-0 overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
+              <th className="px-3 py-3 w-10">
+                <Checkbox checked={allSelected} onCheckedChange={() => allSelected ? null : selectAll()} aria-label="Select all" />
+              </th>
               <th className="px-4 py-3 font-medium">Company</th>
               <th className="px-4 py-3 font-medium">Contact</th>
               <th className="px-4 py-3 font-medium">Value</th>
@@ -124,8 +131,15 @@ function LeadTable({ leads, onDelete }: { leads: Lead[]; onDelete: (lead: Lead) 
               <tr
                 key={lead.id}
                 className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
-                onClick={() => router.push(`/leads/${lead.id}`)}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (target.closest('[data-checkbox]')) return;
+                  router.push(`/leads/${lead.id}`);
+                }}
               >
+                <td className="px-3 py-3 w-10" data-checkbox onClick={(e) => e.stopPropagation()}>
+                  <Checkbox checked={isSelected(lead.id)} onCheckedChange={() => toggle(lead.id)} aria-label={`Select ${lead.company_name}`} />
+                </td>
                 <td className="px-4 py-3 font-medium">{lead.company_name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{lead.contact_name}</td>
                 <td className="px-4 py-3">
@@ -221,6 +235,21 @@ export default function LeadsPage() {
   }
 
   const sources = [...new Set(leads.map((l) => l.source).filter(Boolean))] as string[];
+  const { selected, toggle, selectAll, clearAll, isSelected, allSelected, count } = useBulkSelection(
+    view === 'table' ? filtered : []
+  );
+
+  async function handleBulkDelete() {
+    const ids = selected;
+    try {
+      await Promise.all(ids.map((id) => deleteLead(id)));
+      toast.success(`Deleted ${ids.length} leads`);
+      clearAll();
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete leads');
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -230,6 +259,35 @@ export default function LeadsPage() {
         searchPlaceholder="Search leads..."
         view={view}
         onViewChange={setView}
+        onExport={() =>
+          exportToCSV(
+            filtered.map((l) => ({
+              company: l.company_name,
+              contact: l.contact_name,
+              email: l.email,
+              phone: l.phone,
+              stage: l.stage,
+              source: l.source || '',
+              value: l.estimated_value || 0,
+              currency: l.currency,
+              last_contacted: l.last_contacted_at || '',
+              next_action: l.next_action || '',
+            })),
+            [
+              { key: 'company', label: 'Company' },
+              { key: 'contact', label: 'Contact' },
+              { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Phone' },
+              { key: 'stage', label: 'Stage' },
+              { key: 'source', label: 'Source' },
+              { key: 'value', label: 'Estimated Value' },
+              { key: 'currency', label: 'Currency' },
+              { key: 'last_contacted', label: 'Last Contacted' },
+              { key: 'next_action', label: 'Next Action' },
+            ],
+            `leads-${new Date().toISOString().split('T')[0]}`
+          )
+        }
         filters={[
           {
             key: 'stage',
@@ -298,7 +356,14 @@ export default function LeadsPage() {
           emptyMessage="No leads"
         />
       ) : (
-        <LeadTable leads={filtered} onDelete={(lead) => setDeleteTarget(lead)} />
+        <LeadTable
+          leads={filtered}
+          onDelete={(lead) => setDeleteTarget(lead)}
+          isSelected={isSelected}
+          toggle={toggle}
+          allSelected={allSelected}
+          selectAll={selectAll}
+        />
       )}
 
       <ConfirmDeleteDialog
@@ -307,6 +372,12 @@ export default function LeadsPage() {
         entityName={deleteTarget?.company_name || ''}
         entityType="Lead"
         onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : Promise.resolve()}
+      />
+
+      <BulkActionBar
+        count={count}
+        onClear={clearAll}
+        onDelete={handleBulkDelete}
       />
     </div>
   );

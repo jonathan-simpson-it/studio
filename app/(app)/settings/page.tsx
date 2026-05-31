@@ -7,6 +7,7 @@ import { getCurrentUser, updateUserProfile, getAgencySettings, updateAgencySetti
 import { getGoogleCalendars, toggleGoogleCalendar, fetchAndStoreGoogleCalendars, getGoogleInboxes, toggleGoogleInbox, fetchAndStoreGoogleLabels } from '@/lib/db/actions/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -35,6 +37,8 @@ import {
   Key,
   Copy,
   Check,
+  CheckCircle2,
+  Server,
   Trash2,
   Plus,
   Link,
@@ -63,6 +67,11 @@ export default function SettingsPage() {
   const [agencyForm, setAgencyForm] = useState({ agency_name: 'Jonathan Simpson & Co.', agency_address: '', default_currency: 'HKD' });
   const [templateForm, setTemplateForm] = useState({ invoice_default_terms: '', proposal_default_terms: '', proposal_default_scope_template: '' });
   const [testingModel, setTestingModel] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    handler: () => Promise<void>;
+  } | null>(null);
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
   const [newKeyForm, setNewKeyForm] = useState({ name: '', scope: 'write' });
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
@@ -259,7 +268,7 @@ export default function SettingsPage() {
       <h2 className="text-xl font-semibold">Settings</h2>
 
       <Tabs defaultValue="profile">
-        <TabsList>
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="connections">Connections</TabsTrigger>
           <TabsTrigger value="agency">Agency</TabsTrigger>
@@ -337,15 +346,19 @@ export default function SettingsPage() {
                     size="sm"
                     onClick={async () => {
                       if (user?.github_id) {
-                        if (confirm('Disconnect GitHub?')) {
-                          const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
-                          if (res.ok) {
-                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
-                            toast.success('GitHub disconnected');
-                          } else {
-                            toast.error('Failed to disconnect');
-                          }
-                        }
+                        setConfirmAction({
+                          title: 'Disconnect GitHub',
+                          message: 'Are you sure you want to disconnect GitHub from your account?',
+                          handler: async () => {
+                            const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
+                            if (res.ok) {
+                              queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
+                              toast.success('GitHub disconnected');
+                            } else {
+                              toast.error('Failed to disconnect');
+                            }
+                          },
+                        });
                       } else {
                         await signIn('github', { redirect: true });
                       }
@@ -381,17 +394,21 @@ export default function SettingsPage() {
                     size="sm"
                     onClick={async () => {
                       if (user?.google_id) {
-                        if (confirm('Disconnect Google? This will remove all synced calendars and inboxes.')) {
-                          const res = await fetch('/api/auth/disconnect-google', { method: 'POST' });
-                          if (res.ok) {
-                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, google_id: null, google_email: null }));
-                            queryClient.setQueryData(['google-calendars'], []);
-                            queryClient.setQueryData(['google-inboxes'], []);
-                            toast.success('Google disconnected');
-                          } else {
-                            toast.error('Failed to disconnect');
-                          }
-                        }
+                        setConfirmAction({
+                          title: 'Disconnect Google',
+                          message: 'Are you sure? This will remove all synced calendars and inboxes.',
+                          handler: async () => {
+                            const res = await fetch('/api/auth/disconnect-google', { method: 'POST' });
+                            if (res.ok) {
+                              queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, google_id: null, google_email: null }));
+                              queryClient.setQueryData(['google-calendars'], []);
+                              queryClient.setQueryData(['google-inboxes'], []);
+                              toast.success('Google disconnected');
+                            } else {
+                              toast.error('Failed to disconnect');
+                            }
+                          },
+                        });
                       } else {
                         await signIn('google', { redirect: true });
                       }
@@ -515,7 +532,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Address (for invoices/proposals)</Label>
-                <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={3} value={agencyForm.agency_address} onChange={(e) => setAgencyForm({ ...agencyForm, agency_address: e.target.value })} />
+                <Textarea className="min-h-[80px]" value={agencyForm.agency_address} onChange={(e) => setAgencyForm({ ...agencyForm, agency_address: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Default Currency</Label>
@@ -554,15 +571,19 @@ export default function SettingsPage() {
                     size="sm"
                     onClick={async () => {
                       if (user?.github_id) {
-                        if (confirm('Disconnect GitHub from your account? You will need to reconnect to log in with GitHub.')) {
-                          const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
-                          if (res.ok) {
-                            queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
-                            toast.success('GitHub disconnected');
-                          } else {
-                            toast.error('Failed to disconnect GitHub');
-                          }
-                        }
+                        setConfirmAction({
+                          title: 'Disconnect GitHub',
+                          message: 'Are you sure? You will need to reconnect to log in with GitHub.',
+                          handler: async () => {
+                            const res = await fetch('/api/auth/disconnect-github', { method: 'POST' });
+                            if (res.ok) {
+                              queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, github_id: null, github_username: null }));
+                              toast.success('GitHub disconnected');
+                            } else {
+                              toast.error('Failed to disconnect GitHub');
+                            }
+                          },
+                        });
                       } else {
                         await signIn('github', { redirect: true });
                       }
@@ -575,22 +596,14 @@ export default function SettingsPage() {
                     )}
                   </Button>
                 </div>
-                <IntegrationField
-                  title="GitHub API Key"
-                  service="github"
-                  currentKey={integrations.github?.encrypted_key ? '••••••••' : ''}
-                  onSave={(key, orgName) => updateIntegration('github', key, orgName)}
-                  extraFields={integrations.github?.extra_config as any}
-                />
+                <GitHubAppStatusCard />
                 <IntegrationField
                   title="Resend"
-                  service="resend"
                   currentKey={integrations.resend?.encrypted_key ? '••••••••' : ''}
                   onSave={(key) => updateIntegration('resend', key)}
                 />
                 <IntegrationField
                   title="OpenRouter"
-                  service="openrouter"
                   currentKey={integrations.openrouter?.encrypted_key ? '••••••••' : ''}
                   onSave={(key) => updateIntegration('openrouter', key)}
                 />
@@ -599,7 +612,7 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader><CardTitle className="text-sm">AI Models</CardTitle></CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
@@ -656,15 +669,15 @@ export default function SettingsPage() {
             <CardContent className="p-6 space-y-4">
               <div className="space-y-2">
                 <Label>Default Invoice Payment Terms</Label>
-                <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={3} value={templateForm.invoice_default_terms} onChange={(e) => setTemplateForm({ ...templateForm, invoice_default_terms: e.target.value })} />
+                <Textarea className="min-h-[80px]" value={templateForm.invoice_default_terms} onChange={(e) => setTemplateForm({ ...templateForm, invoice_default_terms: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Default Proposal Payment Terms</Label>
-                <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={3} value={templateForm.proposal_default_terms} onChange={(e) => setTemplateForm({ ...templateForm, proposal_default_terms: e.target.value })} />
+                <Textarea className="min-h-[80px]" value={templateForm.proposal_default_terms} onChange={(e) => setTemplateForm({ ...templateForm, proposal_default_terms: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Default Proposal Scope Template</Label>
-                <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={5} value={templateForm.proposal_default_scope_template} onChange={(e) => setTemplateForm({ ...templateForm, proposal_default_scope_template: e.target.value })} />
+                <Textarea className="min-h-[120px]" value={templateForm.proposal_default_scope_template} onChange={(e) => setTemplateForm({ ...templateForm, proposal_default_scope_template: e.target.value })} />
               </div>
               <Button onClick={updateTemplates}>Save Templates</Button>
             </CardContent>
@@ -848,25 +861,131 @@ export default function SettingsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={!!confirmAction}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmAction?.title}</DialogTitle>
+            <DialogDescription>{confirmAction?.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                await confirmAction?.handler();
+                setConfirmAction(null);
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function GitHubAppStatusCard() {
+  const [info, setInfo] = useState<{
+    appId: string;
+    org: string;
+    installationId: number;
+    tokenExpiresIn: number;
+    repos: number;
+  } | { error: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getAppInfo } = await import('@/lib/github');
+        const result = await getAppInfo();
+        setInfo(result);
+      } catch {
+        setInfo({ error: 'Failed to verify connection' });
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const isError = info && 'error' in info;
+  const isConnected = info && !isError;
+
+  return (
+    <div className="rounded-md border p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Server className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <p className="text-sm font-medium">GitHub App</p>
+            <p className="text-xs text-muted-foreground">Automated issue syncing via GitHub App</p>
+          </div>
+        </div>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : isConnected ? (
+          <Badge variant="default" className="bg-green-600/20 text-green-500 border-green-500/30 text-[10px]">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Connected
+          </Badge>
+        ) : (
+          <Badge variant="destructive" className="text-[10px]">
+            Disconnected
+          </Badge>
+        )}
+      </div>
+
+      {loading && (
+        <div className="space-y-2 animate-pulse">
+          <div className="h-3 w-48 rounded bg-muted" />
+          <div className="h-3 w-32 rounded bg-muted" />
+        </div>
+      )}
+
+      {isConnected && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground">App ID</p>
+            <p className="font-mono mt-0.5">{info.appId}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Installation</p>
+            <p className="font-mono mt-0.5">@{info.org}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Accessible Repos</p>
+            <p className="font-mono mt-0.5">{info.repos}</p>
+          </div>
+        </div>
+      )}
+
+      {isError && (
+        <div className="space-y-2">
+          <p className="text-xs text-destructive">{info.error}</p>
+          <p className="text-xs text-muted-foreground">
+            Ensure <code className="bg-muted px-1 rounded text-[10px]">GITHUB_APP_ID</code> and{' '}
+            <code className="bg-muted px-1 rounded text-[10px]">GITHUB_APP_PRIVATE_KEY</code> are set.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 function IntegrationField({
   title,
-  service,
   currentKey,
   onSave,
-  extraFields,
 }: {
   title: string;
-  service: string;
   currentKey: string;
-  onSave: (key: string, orgName?: string) => void;
-  extraFields?: { org?: string };
+  onSave: (key: string) => void;
 }) {
   const [key, setKey] = useState('');
-  const [org, setOrg] = useState(extraFields?.org || '');
 
   return (
     <div className="space-y-3">
@@ -882,16 +1001,8 @@ function IntegrationField({
           onChange={(e) => setKey(e.target.value)}
           className="flex-1"
         />
-        <Button onClick={() => onSave(key, org)} disabled={!key}>Save</Button>
+        <Button onClick={() => onSave(key)} disabled={!key}>Save</Button>
       </div>
-      {service === 'github' && (
-        <Input
-          placeholder="GitHub Org Name"
-          className="text-sm"
-          value={org}
-          onChange={(e) => setOrg(e.target.value)}
-        />
-      )}
     </div>
   );
 }

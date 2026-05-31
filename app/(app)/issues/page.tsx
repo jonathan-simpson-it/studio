@@ -4,7 +4,9 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listTickets, updateTicket } from '@/lib/db/actions/tickets';
+import { listFounders } from '@/lib/db/actions/settings';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
@@ -29,8 +31,9 @@ const priorityColors: Record<string, string> = {
   Urgent: 'border-red-500 text-red-500',
 };
 
-function IssueCardContent({ ticket }: { ticket: Ticket }) {
+function IssueCardContent({ ticket, founders }: { ticket: Ticket; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const router = useRouter();
+  const assignees = founders.filter((f) => ticket.assignee_ids?.includes(f.id));
 
   return (
     <Card
@@ -52,6 +55,16 @@ function IssueCardContent({ ticket }: { ticket: Ticket }) {
             <span className="text-[10px] text-muted-foreground">· GH</span>
           )}
         </div>
+        {assignees.length > 0 && (
+          <div className="flex -space-x-1.5">
+            {assignees.map((f) => (
+              <Avatar key={f.id} className="h-5 w-5 border border-background">
+                <AvatarImage src={f.avatar_url || undefined} alt={f.name} />
+                <AvatarFallback className="text-[8px]">{f.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+              </Avatar>
+            ))}
+          </div>
+        )}
         {ticket.tags && ticket.tags.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             {ticket.tags.slice(0, 2).map((tag) => (
@@ -69,18 +82,19 @@ function IssueCardContent({ ticket }: { ticket: Ticket }) {
   );
 }
 
-function IssueTable({ tickets }: { tickets: Ticket[] }) {
+function IssueTable({ tickets, founders }: { tickets: Ticket[]; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const router = useRouter();
 
   return (
     <Card>
-      <CardContent className="p-0">
-        <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="px-4 py-3 font-medium">Ticket #</th>
               <th className="px-4 py-3 font-medium">Title</th>
               <th className="px-4 py-3 font-medium">Contact</th>
+              <th className="px-4 py-3 font-medium">Assignee</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Priority</th>
               <th className="px-4 py-3 font-medium">Source</th>
@@ -89,35 +103,48 @@ function IssueTable({ tickets }: { tickets: Ticket[] }) {
             </tr>
           </thead>
           <tbody>
-            {tickets.map((ticket) => (
-              <tr
-                key={ticket.id}
-                className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
-                onClick={() => router.push(`/issues/${ticket.id}`)}
-              >
-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{ticket.ticket_number}</td>
-                <td className="px-4 py-3 font-medium max-w-[200px] truncate">{ticket.title}</td>
-                <td className="px-4 py-3 text-muted-foreground">{ticket.contact_name}</td>
-                <td className="px-4 py-3"><StatusBadge status={ticket.status} /></td>
-                <td className="px-4 py-3">
-                  <Badge variant="outline" className={`text-[10px] ${priorityColors[ticket.priority] || ''}`}>
-                    {ticket.priority}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{ticket.source}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {ticket.tags?.slice(0, 2).map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-[9px] px-1 py-0">{tag}</Badge>
-                    ))}
-                    {(ticket.tags?.length || 0) > 2 && (
-                      <span className="text-[9px] text-muted-foreground">+{ticket.tags!.length - 2}</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(ticket.created_at)}</td>
-              </tr>
-            ))}
+            {tickets.map((ticket) => {
+              const assignees = founders.filter((f) => ticket.assignee_ids?.includes(f.id));
+              return (
+                <tr
+                  key={ticket.id}
+                  className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
+                  onClick={() => router.push(`/issues/${ticket.id}`)}
+                >
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{ticket.ticket_number}</td>
+                  <td className="px-4 py-3 font-medium max-w-[200px] truncate">{ticket.title}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{ticket.contact_name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex -space-x-1.5">
+                      {assignees.map((f) => (
+                        <Avatar key={f.id} className="h-6 w-6 border border-background">
+                          <AvatarImage src={f.avatar_url || undefined} alt={f.name} />
+                          <AvatarFallback className="text-[9px]">{f.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3"><StatusBadge status={ticket.status} /></td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className={`text-[10px] ${priorityColors[ticket.priority] || ''}`}>
+                      {ticket.priority}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{ticket.source}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {ticket.tags?.slice(0, 2).map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-[9px] px-1 py-0">{tag}</Badge>
+                      ))}
+                      {(ticket.tags?.length || 0) > 2 && (
+                        <span className="text-[9px] text-muted-foreground">+{ticket.tags!.length - 2}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(ticket.created_at)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CardContent>
@@ -135,6 +162,11 @@ export default function IssuesPage() {
   const { data: tickets = [] } = useQuery({
     queryKey: ['issues'],
     queryFn: listTickets,
+  });
+
+  const { data: founders = [] } = useQuery({
+    queryKey: ['founders'],
+    queryFn: listFounders,
   });
 
   const filtered = tickets.filter((t) => {
@@ -212,12 +244,12 @@ export default function IssuesPage() {
           getItemId={(t) => t.id}
           getItemStatus={(t) => t.status}
           onStatusChange={handleStatusChange}
-          renderCard={(ticket) => <IssueCardContent ticket={ticket} />}
+          renderCard={(ticket) => <IssueCardContent ticket={ticket} founders={founders} />}
           columnColors={columnColors}
           emptyMessage="No issues"
         />
       ) : (
-        <IssueTable tickets={filtered} />
+        <IssueTable tickets={filtered} founders={founders} />
       )}
     </div>
   );

@@ -143,21 +143,19 @@ export default function FinancePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">By Client</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Invoiced</th>
-                <th className="px-4 py-3 font-medium">Collected</th>
-                <th className="px-4 py-3 font-medium">Outstanding</th>
-                <th className="px-4 py-3 font-medium">Costs</th>
-                <th className="px-4 py-3 font-medium">Margin</th>
-                <th className="px-4 py-3 font-medium">Margin %</th>
-              </tr>
-            </thead>
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Category</th>
+                    <th className="px-4 py-3 font-medium">Amount</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Recurring</th>
+                    <th className="px-4 py-3 font-medium">Description</th>
+                    <th className="px-4 py-3 w-10"></th>
+                  </tr>
+                </thead>
             <tbody>
               {byClient.map(({ client, invoiced, collected, outstanding, costs: cst, margin, marginPct }) => (
                 <tr key={client.id} className="border-b text-sm">
@@ -250,9 +248,9 @@ function CostForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: P
         <Label>Description</Label>
         <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Amount</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Amount</Label>
           <Input type="number" value={form.amount || ''} onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })} required />
         </div>
         <div className="space-y-2">

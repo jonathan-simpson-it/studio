@@ -452,7 +452,7 @@ export default function InboxPage() {
                 <div
                   role="button"
                   tabIndex={0}
-                  className="flex items-center h-16 px-0 border-b border-border group hover:bg-muted/50 transition-colors cursor-pointer"
+                  className="flex items-center h-16 px-0 border-b border-border group hover:bg-muted/50 transition-colors cursor-pointer overflow-hidden"
                   onClick={() => toggleExpand(msg)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(msg); }}
                 >
@@ -486,11 +486,11 @@ export default function InboxPage() {
                       )}
                     </div>
                     {/* Subject */}
-                    <p className={`text-sm truncate leading-tight ${read ? 'font-normal' : 'font-semibold'}`}>
+                    <p className={`text-sm line-clamp-1 break-all leading-tight ${read ? 'font-normal' : 'font-semibold'}`}>
                       {cleanSubject(decodeHtmlEntities(msg.subject))}
                     </p>
                     {/* Preview - 1 line max */}
-                    <p className="text-xs text-muted-foreground truncate leading-tight">
+                    <p className="text-xs text-muted-foreground line-clamp-1 break-all leading-tight">
                       {decodeHtmlEntities(msg.ai_summary || msg.snippet || '')}
                     </p>
                   </div>

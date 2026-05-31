@@ -190,3 +190,79 @@ export async function listOutbox(limit = 50) {
   await connect();
   return toPlain(await EmailOutbox.find({ user_id: session.user.id }).sort({ sent_at: -1 }).limit(limit).lean({ virtuals: true }));
 }
+
+export interface NotificationItem {
+  id: string;
+  type: 'overdue_task' | 'stale_lead' | 'invoice_due' | 'invoice_overdue';
+  message: string;
+  entity_href: string;
+  created_at: string;
+}
+
+export async function getNotifications(): Promise<NotificationItem[]> {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+
+  await connect();
+  const { Task, Project } = await import('@/lib/db/models/projects');
+  const { Lead } = await import('@/lib/db/models/crm');
+  const { Invoice } = await import('@/lib/db/models/docs');
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const notifications: NotificationItem[] = [];
+
+  // Overdue tasks (past due, not done)
+  const overdueTasks = await Task.find({
+    due_date: { $lt: now },
+    status: { $ne: 'Done' },
+    assignee_ids: session.user.id,
+  }).lean({ virtuals: true });
+
+  for (const t of overdueTasks) {
+    notifications.push({
+      id: `task-${t._id}`,
+      type: 'overdue_task',
+      message: `Task "${(t as any).title || 'Untitled'}" is overdue`,
+      entity_href: `/tasks/${(t as any)._id}`,
+      created_at: (t as any).due_date?.toISOString() || now.toISOString(),
+    });
+  }
+
+  // Stale leads (no contact in 7+ days, not won/lost)
+  const staleLeads = await Lead.find({
+    $or: [
+      { last_contacted_at: { $lt: sevenDaysAgo } },
+      { last_contacted_at: { $exists: false } },
+    ],
+    stage: { $nin: ['Won', 'Lost'] },
+  }).lean({ virtuals: true });
+
+  for (const l of staleLeads) {
+    notifications.push({
+      id: `lead-${l._id}`,
+      type: 'stale_lead',
+      message: `Lead "${(l as any).company_name || 'Untitled'}" hasn't been contacted in 7+ days`,
+      entity_href: `/leads/${(l as any)._id}`,
+      created_at: now.toISOString(),
+    });
+  }
+
+  // Due/overdue invoices
+  const dueInvoices = await Invoice.find({
+    status: { $in: ['Sent', 'Overdue'] },
+    due_date: { $lte: now },
+  }).lean({ virtuals: true });
+
+  for (const inv of dueInvoices) {
+    notifications.push({
+      id: `inv-${inv._id}`,
+      type: inv.status === 'Overdue' ? 'invoice_overdue' : 'invoice_due',
+      message: `Invoice ${(inv as any).invoice_number || ''} is ${inv.status === 'Overdue' ? 'overdue' : 'due'}`,
+      entity_href: `/invoices/${(inv as any)._id}`,
+      created_at: (inv as any).due_date?.toISOString() || now.toISOString(),
+    });
+  }
+
+  return notifications.slice(0, 20);
+}

@@ -90,7 +90,7 @@ export interface ITask extends Document {
   project_id: string | null;
   client_id: string | null;
   milestone_id: string | null;
-  assignee_id: string | null;
+  assignee_ids: string[];
   priority: string;
   status: string;
   due_date: Date | null;
@@ -99,6 +99,9 @@ export interface ITask extends Document {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  is_recurring: boolean;
+  recurring_frequency: 'daily' | 'weekly' | 'monthly' | null;
+  next_due: Date | null;
 }
 
 const taskSchema = new Schema<ITask>({
@@ -107,7 +110,7 @@ const taskSchema = new Schema<ITask>({
   project_id: { type: String, default: null },
   client_id: { type: String, default: null },
   milestone_id: { type: String, default: null },
-  assignee_id: { type: String, default: null },
+  assignee_ids: [{ type: String }],
   priority: { type: String, default: 'Medium' },
   status: { type: String, default: 'Todo' },
   due_date: { type: Date, default: null },
@@ -116,9 +119,12 @@ const taskSchema = new Schema<ITask>({
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
+  is_recurring: { type: Boolean, default: false },
+  recurring_frequency: { type: String, enum: ['daily', 'weekly', 'monthly'], default: null },
+  next_due: { type: Date, default: null },
 });
 
-taskSchema.index({ assignee_id: 1, status: 1 });
+taskSchema.index({ assignee_ids: 1, status: 1 });
 taskSchema.index({ project_id: 1 });
 taskSchema.index({ status: 1 });
 

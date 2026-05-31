@@ -2,9 +2,14 @@
 
 import { connect } from '@/lib/db/connect';
 import { Project, Milestone, Task, ProjectRepo, SyncedGithubIssue } from '@/lib/db/models/projects';
-import { Proposal, Invoice, Note, Cost } from '@/lib/db/models/docs';
+import { Proposal, Invoice, Note, Cost, FileRecord } from '@/lib/db/models/docs';
 import { Client, ActivityLog, IContact, Contact } from '@/lib/db/models/crm';
+import { Ticket } from '@/lib/db/models/tickets';
+import { DocNumberSequence, TimeEntry } from '@/lib/db/models/meta';
 import { toPlain } from '@/lib/db/to-plain';
+import { deleteFromGridFS } from '@/lib/storage/gridfs';
+import { auth } from '@/auth';
+import { revalidatePath } from 'next/cache';
 
 export async function listProjects() {
   await connect();
@@ -42,15 +47,70 @@ export async function updateProject(id: string, data: Record<string, unknown>) {
 }
 
 export async function deleteProject(id: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await connect();
+
+    const files = await FileRecord.find({ project_id: id }).lean();
+    await Promise.all(files.map(async (file: any) => {
+      try {
+        await deleteFromGridFS(file.storage_path);
+      } catch {
+        // GridFS file may already be deleted
+      }
+    }));
+
+    await ActivityLog.deleteMany({ entity_id: id });
+
+    await Promise.all([
+      Milestone.deleteMany({ project_id: id }),
+      Task.deleteMany({ project_id: id }),
+      Note.deleteMany({ project_id: id }),
+      ProjectRepo.deleteMany({ project_id: id }),
+      SyncedGithubIssue.deleteMany({ project_id: id }),
+      Proposal.deleteMany({ project_id: id }),
+      Invoice.deleteMany({ project_id: id }),
+      Cost.deleteMany({ project_id: id }),
+      FileRecord.deleteMany({ project_id: id }),
+      Ticket.deleteMany({ project_id: id }),
+      TimeEntry.deleteMany({ project_id: id }),
+    ]);
+
+    const deleted = await Project.findByIdAndDelete(id).lean({ virtuals: true });
+    if (!deleted) throw new Error('Project not found');
+
+    revalidatePath('/projects');
+    return toPlain(deleted);
+  } catch (err) {
+    console.error('Failed to delete project:', err);
+    throw new Error(err instanceof Error ? err.message : 'Failed to delete project');
+  }
+}
+
+export async function getProjectBudgetProgress(projectId: string) {
   await connect();
-  await Promise.all([
-    Milestone.deleteMany({ project_id: id }),
-    Task.deleteMany({ project_id: id }),
-    Note.deleteMany({ project_id: id }),
-    ProjectRepo.deleteMany({ project_id: id }),
-    SyncedGithubIssue.deleteMany({ project_id: id }),
-  ]);
-  return Project.findByIdAndDelete(id);
+  const costs = await Cost.find({ project_id: projectId }).lean({ virtuals: true });
+  const timeEntries = await TimeEntry.find({ project_id: projectId, end_time: { $ne: null } }).lean({ virtuals: true });
+  const project = await Project.findById(projectId).lean({ virtuals: true });
+  if (!project) return { budget: 0, spent: 0, remaining: 0, percentUsed: 0 };
+
+  const totalCosts = costs.reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
+  const totalTimeCost = timeEntries.reduce((sum: number, t: any) => {
+    if (!t.end_time || !t.start_time) return sum;
+    const hours = (new Date(t.end_time).getTime() - new Date(t.start_time).getTime()) / 3600000;
+    return sum + hours * (t.hourly_rate || 0);
+  }, 0);
+  const spent = totalCosts + totalTimeCost;
+  const budget = project.budget || 0;
+
+  return {
+    budget,
+    spent,
+    remaining: Math.max(0, budget - spent),
+    percentUsed: budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0,
+  };
 }
 
 export async function getProjectStats() {
@@ -80,6 +140,34 @@ export async function getProjectRepos() {
 export async function getProjectReposByProject(projectId: string) {
   await connect();
   return toPlain(await ProjectRepo.find({ project_id: projectId }).lean({ virtuals: true }));
+}
+
+export async function linkRepoToProject(data: {
+  project_id: string;
+  github_repo_owner: string;
+  github_repo_name: string;
+  github_repo_url?: string;
+}) {
+  await connect();
+  const full_name = `${data.github_repo_owner}/${data.github_repo_name}`;
+  const existing = await ProjectRepo.findOne({ project_id: data.project_id, full_name }).lean({ virtuals: true });
+  if (existing) {
+    throw new Error('This repo is already linked to this project');
+  }
+  const repo = await ProjectRepo.create({
+    project_id: data.project_id,
+    github_repo_owner: data.github_repo_owner,
+    github_repo_name: data.github_repo_name,
+    github_repo_url: data.github_repo_url || `https://github.com/${full_name}`,
+    full_name,
+    created_at: new Date(),
+  });
+  return toPlain(repo.toObject({ virtuals: true }));
+}
+
+export async function unlinkRepoFromProject(repoId: string) {
+  await connect();
+  return toPlain(await ProjectRepo.findByIdAndDelete(repoId).lean({ virtuals: true }));
 }
 
 export async function getSyncedIssuesByProject(projectId: string) {
@@ -146,7 +234,7 @@ export async function createTask(data: Record<string, unknown>) {
 
 export async function getUserTasks(userId: string) {
   await connect();
-  return toPlain(await Task.find({ assignee_id: userId, status: { $ne: 'Done' } }).sort({ created_at: -1 }).lean({ virtuals: true }));
+  return toPlain(await Task.find({ assignee_ids: userId, status: { $ne: 'Done' } }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
 export async function getTask(id: string) {
@@ -171,7 +259,46 @@ export async function getTasksForProject(projectId: string) {
 
 export async function updateTask(id: string, data: Record<string, unknown>) {
   await connect();
-  return toPlain(await Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true }));
+  const task = await Task.findByIdAndUpdate(id, { ...data, updated_at: new Date() }, { returnDocument: 'after' }).lean({ virtuals: true });
+  if (task && data.status === 'Done' && (task as any).is_recurring) {
+    const t = task as any;
+    const now = new Date();
+    let nextDue: Date | null = null;
+    if (t.next_due) {
+      nextDue = new Date(t.next_due);
+      switch (t.recurring_frequency) {
+        case 'daily': nextDue.setDate(nextDue.getDate() + 1); break;
+        case 'weekly': nextDue.setDate(nextDue.getDate() + 7); break;
+        case 'monthly': nextDue.setMonth(nextDue.getMonth() + 1); break;
+      }
+    } else if (t.due_date) {
+      nextDue = new Date(t.due_date);
+      switch (t.recurring_frequency) {
+        case 'daily': nextDue.setDate(nextDue.getDate() + 1); break;
+        case 'weekly': nextDue.setDate(nextDue.getDate() + 7); break;
+        case 'monthly': nextDue.setMonth(nextDue.getMonth() + 1); break;
+      }
+    }
+    await Task.create({
+      title: t.title,
+      description: t.description,
+      project_id: t.project_id,
+      client_id: t.client_id,
+      milestone_id: t.milestone_id,
+      assignee_ids: t.assignee_ids,
+      priority: t.priority,
+      status: 'Todo',
+      due_date: nextDue,
+      est_hours: t.est_hours,
+      is_recurring: true,
+      recurring_frequency: t.recurring_frequency,
+      next_due: nextDue,
+      created_by: t.created_by,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+  return toPlain(task);
 }
 
 export async function deleteTask(id: string) {
@@ -181,7 +308,7 @@ export async function deleteTask(id: string) {
 
 export async function getAllTasksWithDueDates() {
   await connect();
-  return toPlain(await Task.find({ due_date: { $ne: null } }).select('id title due_date project_id assignee_id').lean({ virtuals: true }));
+  return toPlain(await Task.find({ due_date: { $ne: null } }).select('id title due_date project_id assignee_ids').lean({ virtuals: true }));
 }
 
 export async function getAllMilestonesWithDueDates() {
@@ -189,27 +316,34 @@ export async function getAllMilestonesWithDueDates() {
   return toPlain(await Milestone.find({ due_date: { $ne: null } }).select('id title due_date project_id').lean({ virtuals: true }));
 }
 
-export async function syncAllGithubIssues() {
+export async function syncProjectIssues(projectId: string): Promise<{ synced: number; failed: number; ticketsCreated: number }> {
   await connect();
-  const repos = await ProjectRepo.find().lean({ virtuals: true });
 
-  if (!repos || repos.length === 0) return { synced: 0, failed: 0 };
+  const repos = await ProjectRepo.find({ project_id: projectId }).lean({ virtuals: true });
+  if (!repos || repos.length === 0) return { synced: 0, failed: 0, ticketsCreated: 0 };
+
+  const project = await Project.findById(projectId).lean({ virtuals: true });
 
   let totalSynced = 0;
   let totalFailed = 0;
+  let ticketsCreated = 0;
 
   for (const repo of repos) {
     try {
       const { listIssues } = await import('@/lib/github');
       const issues = await listIssues((repo as any).full_name);
+
       for (const issue of issues) {
         try {
+          const existing = await SyncedGithubIssue.findOne({ github_issue_id: issue.number }).lean({ virtuals: true });
+          const isNew = !existing;
+
           await SyncedGithubIssue.findOneAndUpdate(
             { github_issue_id: issue.number },
             {
               github_issue_id: issue.number,
               repo_id: (repo as any)._id.toString(),
-              project_id: (repo as any).project_id,
+              project_id: projectId,
               title: issue.title,
               body: issue.body || '',
               state: issue.state,
@@ -225,6 +359,24 @@ export async function syncAllGithubIssues() {
             { upsert: true }
           );
           totalSynced++;
+
+          if (isNew && project && (project as any).client_id) {
+            try {
+              const { createTicketFromGithubIssue } = await import('@/lib/db/actions/tickets');
+              const ticket = await createTicketFromGithubIssue({
+                github_issue_id: issue.number,
+                project_id: projectId,
+                client_id: (project as any).client_id,
+                title: issue.title,
+                description: issue.body || '',
+                github_url: issue.html_url,
+                author_login: issue.user?.login || 'unknown',
+              });
+              if (ticket) ticketsCreated++;
+            } catch (ticketErr) {
+              console.error(`Failed to create ticket from GH issue #${issue.number}:`, ticketErr);
+            }
+          }
         } catch (err) {
           console.error(`Failed to sync issue #${issue.number} from ${(repo as any).full_name}:`, (err as Error).message);
           totalFailed++;
@@ -235,7 +387,27 @@ export async function syncAllGithubIssues() {
     }
   }
 
-  return { synced: totalSynced, failed: totalFailed };
+  return { synced: totalSynced, failed: totalFailed, ticketsCreated };
+}
+
+export async function syncAllGithubIssues() {
+  await connect();
+  const repos = await ProjectRepo.find().lean({ virtuals: true });
+  if (!repos || repos.length === 0) return { synced: 0, failed: 0, ticketsCreated: 0 };
+
+  const projectIds = [...new Set(repos.map((r: any) => r.project_id as string))];
+  let totalSynced = 0;
+  let totalFailed = 0;
+  let ticketsCreated = 0;
+
+  for (const projectId of projectIds) {
+    const result = await syncProjectIssues(projectId);
+    totalSynced += result.synced;
+    totalFailed += result.failed;
+    ticketsCreated += result.ticketsCreated;
+  }
+
+  return { synced: totalSynced, failed: totalFailed, ticketsCreated };
 }
 
 export async function getAllSyncedIssuesWithDueDates() {

@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatCurrency } from '@/lib/utils';
 import Image from 'next/image';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,8 @@ import {
   ArrowRight,
   Mail,
   Ticket as TicketIcon,
+  Briefcase,
+  Receipt,
   Plus,
   ExternalLink,
   AlertTriangle,
@@ -41,7 +44,7 @@ export default function PortalPage() {
   const [email, setEmail] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ tickets: Ticket[]; client: any } | null>(null);
+  const [data, setData] = useState<{ tickets: Ticket[]; client: any; projects: { id: string; name: string; status: string }[] } | null>(null);
   const [error, setError] = useState('');
   const [showNewTicket, setShowNewTicket] = useState(false);
 
@@ -202,94 +205,173 @@ export default function PortalPage() {
               </div>
             )}
 
-            <div className="flex justify-end">
-              <Dialog open={showNewTicket} onOpenChange={setShowNewTicket}>
-                <DialogTrigger asChild>
-                  <Button
-                    disabled={
-                      data.client !== null &&
-                      data.client.remaining_tickets !== null &&
-                      data.client.remaining_tickets !== undefined &&
-                      data.client.remaining_tickets <= 0
-                    }
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> New Ticket
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>New Ticket</DialogTitle>
-                  </DialogHeader>
-                  <NewTicketForm
-                    email={submittedEmail}
-                    onSuccess={() => {
-                      setShowNewTicket(false);
-                      getTicketsByEmail(submittedEmail).then((r) => setData(r as any)).catch(() => {});
-                    }}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+            <Tabs defaultValue="tickets">
+              <TabsList>
+                <TabsTrigger value="tickets" className="flex items-center gap-2">
+                  <TicketIcon className="h-4 w-4" /> Tickets
+                </TabsTrigger>
+                <TabsTrigger value="projects" className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Projects
+                </TabsTrigger>
+                <TabsTrigger value="invoices" className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4" /> Invoices
+                </TabsTrigger>
+              </TabsList>
 
-            <Card>
-              <CardContent className="p-0">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="px-4 py-3 font-medium">Ticket</th>
-                      <th className="px-4 py-3 font-medium">Title</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Priority</th>
-                      <th className="px-4 py-3 font-medium">Date</th>
-                      <th className="px-4 py-3 w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.tickets.map((t) => (
-                      <tr key={t.id} className="border-b text-sm hover:bg-accent/30">
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.ticket_number}</td>
-                        <td className="px-4 py-3 font-medium">{t.title}</td>
-                        <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] cursor-pointer ${
-                              t.priority === 'Urgent' ? 'border-red-500 text-red-500' :
-                              t.priority === 'High' ? 'border-orange-500 text-orange-500' :
-                              t.priority === 'Medium' ? 'border-amber-500 text-amber-500' :
-                              'border-zinc-400 text-zinc-400'
-                            }`}
-                            onClick={() => handleRaisePriority(t)}
-                          >
-                            {t.priority}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
-                        <td className="px-4 py-3">
-                          {t.created_issue_url && (
-                            <a
-                              href={t.created_issue_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                            >
-                              View <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {data.tickets.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                          No tickets found for this email.
-                        </td>
-                      </tr>
+              <TabsContent value="tickets" className="space-y-4 pt-4">
+                <div className="flex justify-end">
+                  <Dialog open={showNewTicket} onOpenChange={setShowNewTicket}>
+                    <DialogTrigger asChild>
+                      <Button
+                        disabled={
+                          data.client !== null &&
+                          data.client.remaining_tickets !== null &&
+                          data.client.remaining_tickets !== undefined &&
+                          data.client.remaining_tickets <= 0
+                        }
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> New Ticket
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>New Ticket</DialogTitle>
+                      </DialogHeader>
+                      <NewTicketForm
+                        email={submittedEmail}
+                        projects={data?.projects || []}
+                        onSuccess={() => {
+                          setShowNewTicket(false);
+                          getTicketsByEmail(submittedEmail).then((r) => setData(r as any)).catch(() => {});
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <Card>
+                  <CardContent className="p-0">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="px-4 py-3 font-medium">Ticket</th>
+                          <th className="px-4 py-3 font-medium">Title</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium">Priority</th>
+                          <th className="px-4 py-3 font-medium">Date</th>
+                          <th className="px-4 py-3 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.tickets.map((t) => (
+                          <tr key={t.id} className="border-b text-sm hover:bg-accent/30">
+                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.ticket_number}</td>
+                            <td className="px-4 py-3 font-medium">{t.title}</td>
+                            <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant="outline"
+                                className={`text-xs cursor-pointer ${
+                                  t.priority === 'Urgent' ? 'border-red-500 text-red-500' :
+                                  t.priority === 'High' ? 'border-orange-500 text-orange-500' :
+                                  t.priority === 'Medium' ? 'border-amber-500 text-amber-500' :
+                                  'border-zinc-400 text-zinc-400'
+                                }`}
+                                onClick={() => handleRaisePriority(t)}
+                              >
+                                {t.priority}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
+                            <td className="px-4 py-3">
+                              {t.created_issue_url && (
+                                <a
+                                  href={t.created_issue_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                >
+                                  View <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {data.tickets.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                              No tickets found for this email.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="projects" className="pt-4">
+                <Card>
+                  <CardContent className="p-0">
+                    {(data as any).projects?.length > 0 ? (
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th className="px-4 py-3 font-medium">Project</th>
+                            <th className="px-4 py-3 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(data as any).projects.map((p: any) => (
+                            <tr key={p.id} className="border-b text-sm">
+                              <td className="px-4 py-3 font-medium">{p.name}</td>
+                              <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        No active projects
+                      </div>
                     )}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="invoices" className="pt-4">
+                <Card>
+                  <CardContent className="p-0">
+                    {(data as any).invoices?.length > 0 ? (
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th className="px-4 py-3 font-medium">Invoice</th>
+                            <th className="px-4 py-3 font-medium">Status</th>
+                            <th className="px-4 py-3 font-medium">Amount</th>
+                            <th className="px-4 py-3 font-medium">Due</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(data as any).invoices.map((inv: any) => (
+                            <tr key={inv.id} className="border-b text-sm">
+                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{inv.invoice_number}</td>
+                              <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
+                              <td className="px-4 py-3">{formatCurrency(inv.total, inv.currency)}</td>
+                              <td className="px-4 py-3 text-muted-foreground text-xs">{inv.due_date || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        No invoices yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </main>
@@ -299,15 +381,18 @@ export default function PortalPage() {
 
 function NewTicketForm({
   email,
+  projects,
   onSuccess,
 }: {
   email: string;
+  projects: { id: string; name: string; status: string }[];
   onSuccess: () => void;
 }) {
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>('_none');
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -323,6 +408,7 @@ function NewTicketForm({
         description: description.trim() || undefined,
         source: 'support-form',
         priority: 'Medium',
+        project_id: selectedProject === '_none' ? null : selectedProject,
       });
       toast.success('Ticket submitted');
       onSuccess();
@@ -368,6 +454,34 @@ function NewTicketForm({
           placeholder="Describe what you need..."
         />
       </div>
+      {projects.length > 0 && (
+        <div className="space-y-2">
+          <Label>Project <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <div className="relative">
+            <select
+              className="w-full appearance-none rounded-md border bg-transparent px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+            >
+              <option value="_none">General / No Project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Select a project to link this ticket to its GitHub repository.
+          </p>
+        </div>
+      )}
       <div className="space-y-2">
         <Label>Tags</Label>
         <div className="flex items-center gap-1.5 flex-wrap">

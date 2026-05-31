@@ -246,7 +246,7 @@ Thank you for your business.
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Client</Label>
               <Select value={invoice.client_id} onValueChange={(v) => handleField('client_id', v)}>
@@ -275,7 +275,7 @@ Thank you for your business.
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Discount (%)</Label>
               <Input type="number" value={invoice.discount_percent} onChange={(e) => handleField('discount_percent', parseFloat(e.target.value) || 0)} />
