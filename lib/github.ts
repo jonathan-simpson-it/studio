@@ -190,7 +190,7 @@ export async function verifyConnection(): Promise<{ ok: boolean; org?: string; e
 }
 
 export async function getAppInfo(): Promise<{
-  appId: string;
+  appId: number;
   org: string;
   installationId: number;
   tokenExpiresIn: number;

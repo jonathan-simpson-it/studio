@@ -890,7 +890,7 @@ export default function SettingsPage() {
 
 function GitHubAppStatusCard() {
   const [info, setInfo] = useState<{
-    appId: string;
+    appId: number;
     org: string;
     installationId: number;
     tokenExpiresIn: number;
