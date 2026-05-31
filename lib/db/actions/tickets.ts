@@ -3,8 +3,12 @@
 import { connect } from '@/lib/db/connect';
 import { Ticket } from '@/lib/db/models/tickets';
 import { Client } from '@/lib/db/models/crm';
-import { Project } from '@/lib/db/models/projects';
+import { Project, ProjectRepo, Task } from '@/lib/db/models/projects';
 import { Invoice } from '@/lib/db/models/docs';
+import { DocNumberSequence } from '@/lib/db/models/meta';
+import { User } from '@/lib/db/models/core';
+import { generateAIContent } from '@/lib/ai';
+import { createIssue, updateIssue } from '@/lib/github';
 import { toPlain } from '@/lib/db/to-plain';
 
 export async function getTicketNumber(): Promise<string> {

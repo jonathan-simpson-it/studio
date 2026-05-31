@@ -173,6 +173,13 @@ Open `http://localhost:3000`, click **Register**, enter your invite code and cre
 | POST | `/api/files/upload` | Session | Upload file to GridFS |
 | POST | `/api/files/delete` | Session | Delete file from GridFS |
 | GET | `/api/files/serve` | None | Serve file by ID |
+| POST | `/api/projects` | API key (write) | Create a project |
+| GET | `/api/projects` | API key (read) | List projects, filter by status/client_id |
+| GET | `/api/projects/[id]` | API key (read) | Full project detail with milestones, tasks, repos, invoices |
+| POST | `/api/tasks` | API key (write) | Create a task |
+| GET | `/api/tasks` | API key (read) | List tasks, filter by project/status/assignee |
+| GET | `/api/clients` | API key (read) | List clients, optional search by company name |
+| POST | `/api/github/create-issue` | API key (write) | Create GitHub issue in linked repo |
 | POST | `/api/leads` | API key (write) | Create lead from portfolio site |
 | POST | `/api/ocr/extract` | Session | OCR text extraction from images/PDFs |
 | POST | `/api/ocr/parse` | Session | Parse extracted text into structured data |
@@ -404,6 +411,7 @@ studio/
 │   ├── tasks.spec.ts, tickets.spec.ts, ui-ux.spec.ts
 │   ├── helpers.ts                     # Test helpers
 │   └── global-setup.ts                # Global test setup
+├── mcp-server/                        # MCP server for Perplexity/Claude integration
 ├── scripts/                           # seed-finance.ts, seed-test-tickets.ts
 ├── public/                            # JSC-logo.png/svg, favicons, site.webmanifest, app icons
 ├── auth.ts                            # Auth.js v5 configuration
