@@ -64,6 +64,8 @@ export interface IClient extends Document {
   currency_preference: string;
   source_lead_id: string | null;
   is_internal: boolean;
+  ticket_package: string | null;
+  remaining_tickets: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -80,6 +82,8 @@ const clientSchema = new Schema<IClient>({
   currency_preference: { type: String, default: 'HKD' },
   source_lead_id: { type: String, default: null },
   is_internal: { type: Boolean, default: false },
+  ticket_package: { type: String, default: null },
+  remaining_tickets: { type: Number, default: null },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });

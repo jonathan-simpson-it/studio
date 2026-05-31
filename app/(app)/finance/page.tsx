@@ -31,8 +31,12 @@ import {
   AlertTriangle,
   Receipt,
   PiggyBank,
+  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import type { Invoice, Cost, Client } from '@/types';
 
 export default function FinancePage() {
@@ -203,6 +207,8 @@ export default function FinancePage() {
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium">Description</th>
                 <th className="px-4 py-3 font-medium">Amount</th>
+                <th className="px-4 py-3 font-medium">Reimbursable</th>
+                <th className="px-4 py-3 font-medium">Payment Source</th>
                 <th className="px-4 py-3 font-medium">Date</th>
               </tr>
             </thead>
@@ -212,6 +218,8 @@ export default function FinancePage() {
                   <td className="px-4 py-3"><span className="text-xs bg-muted px-2 py-0.5 rounded">{c.category}</span></td>
                   <td className="px-4 py-3 text-muted-foreground">{c.description}</td>
                   <td className="px-4 py-3">{formatCurrency(c.amount, c.currency)}</td>
+                  <td className="px-4 py-3">{c.is_reimbursable ? <Badge variant="outline" className="text-xs"><RotateCcw className="mr-1 h-3 w-3" />Yes</Badge> : <span className="text-muted-foreground text-xs">—</span>}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.payment_source || <span className="text-muted-foreground/50 text-xs">—</span>}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.date}</td>
                 </tr>
               ))}
@@ -224,7 +232,7 @@ export default function FinancePage() {
 }
 
 function CostForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: Partial<Cost>) => Promise<void> }) {
-  const [form, setForm] = useState({ category: 'Software', description: '', amount: 0, currency: 'HKD', date: new Date().toISOString().split('T')[0], client_id: '_none' });
+  const [form, setForm] = useState({ category: 'Software', description: '', amount: 0, currency: 'HKD', date: new Date().toISOString().split('T')[0], client_id: '_none', is_reimbursable: false, payment_source: '', related_founder: '', notes: '' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, client_id: form.client_id === '_none' ? null : form.client_id } as Partial<Cost>); }} className="space-y-4 pt-4">
       <div className="space-y-2">
@@ -260,6 +268,37 @@ function CostForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: P
       <div className="space-y-2">
         <Label>Date</Label>
         <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox id="is_reimbursable" checked={form.is_reimbursable} onCheckedChange={(v) => setForm({ ...form, is_reimbursable: v === true })} />
+        <Label htmlFor="is_reimbursable">Reimbursable</Label>
+      </div>
+      <div className="space-y-2">
+        <Label>Payment Source</Label>
+        <Select value={form.payment_source} onValueChange={(v) => setForm({ ...form, payment_source: v === '_none' ? '' : v })}>
+          <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none">None</SelectItem>
+            <SelectItem value="Company Bank">Company Bank</SelectItem>
+            <SelectItem value="Lewis Personal">Lewis Personal</SelectItem>
+            <SelectItem value="Devano Personal">Devano Personal</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Related Founder (optional)</Label>
+        <Select value={form.related_founder} onValueChange={(v) => setForm({ ...form, related_founder: v === '_none' ? '' : v })}>
+          <SelectTrigger><SelectValue placeholder="Select founder" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none">None</SelectItem>
+            <SelectItem value="Lewis">Lewis</SelectItem>
+            <SelectItem value="Devano">Devano</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Notes (optional)</Label>
+        <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
       </div>
       <div className="space-y-2">
         <Label>Client (optional)</Label>

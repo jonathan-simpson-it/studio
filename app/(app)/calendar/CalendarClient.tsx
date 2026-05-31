@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentUser } from '@/lib/db/actions/settings';
-import { listCalendars, getEventsForCalendar, createEvent, updateEvent, deleteEvent, processPendingReminders } from '@/lib/db/actions/calendar';
+import { listCalendars, getEventsForCalendar, createEvent, updateEvent, deleteEvent } from '@/lib/db/actions/calendar';
 import { syncAllGithubIssues } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { MonthView } from './MonthView';
@@ -114,10 +114,6 @@ export default function CalendarClient({
     queryFn: listCalendars,
     initialData: initCalendars,
   });
-
-  useEffect(() => {
-    processPendingReminders().catch(() => {});
-  }, []);
 
   async function handleSyncGithub() {
     setSyncing(true);

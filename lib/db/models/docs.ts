@@ -8,6 +8,9 @@ export interface INote extends Document {
   project_id: string | null;
   task_id: string | null;
   visibility: string;
+  tags: string[];
+  is_pinned: boolean;
+  parent_note_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -20,9 +23,18 @@ const noteSchema = new Schema<INote>({
   project_id: { type: String, default: null },
   task_id: { type: String, default: null },
   visibility: { type: String, default: 'internal' },
+  tags: { type: [String], default: [] },
+  is_pinned: { type: Boolean, default: false },
+  parent_note_id: { type: String, default: null },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });
+
+noteSchema.index({ title: 'text', body: 'text' });
+noteSchema.index({ client_id: 1, created_at: -1 });
+noteSchema.index({ project_id: 1, created_at: -1 });
+noteSchema.index({ author_id: 1, is_pinned: -1, created_at: -1 });
+noteSchema.index({ tags: 1 });
 
 export const Note = mongoose.models.Note || mongoose.model<INote>('Note', noteSchema);
 
@@ -30,6 +42,7 @@ export interface IProposal extends Document {
   proposal_number: string;
   client_id: string;
   project_id: string | null;
+  lead_id: string | null;
   status: string;
   currency: string;
   line_items: Array<{
@@ -60,6 +73,7 @@ const proposalSchema = new Schema<IProposal>({
   proposal_number: { type: String, required: true, unique: true },
   client_id: { type: String, required: true },
   project_id: { type: String, default: null },
+  lead_id: { type: String, default: null },
   status: { type: String, default: 'Draft' },
   currency: { type: String, default: 'HKD' },
   line_items: [{ service: String, description: String, quantity: Number, unit_price: Number, total: Number }],
@@ -80,6 +94,7 @@ const proposalSchema = new Schema<IProposal>({
   updated_at: { type: Date, default: Date.now },
 });
 
+proposalSchema.index({ lead_id: 1 });
 export const Proposal = mongoose.models.Proposal || mongoose.model<IProposal>('Proposal', proposalSchema);
 
 export interface IInvoice extends Document {
@@ -160,6 +175,10 @@ export interface ICost extends Document {
   project_id: string | null;
   is_recurring: boolean;
   recurring_frequency: string | null;
+  is_reimbursable: boolean;
+  payment_source: string | null;
+  related_founder: string | null;
+  notes: string | null;
   created_by: string;
   created_at: Date;
 }
@@ -174,6 +193,10 @@ const costSchema = new Schema<ICost>({
   project_id: { type: String, default: null },
   is_recurring: { type: Boolean, default: false },
   recurring_frequency: { type: String, default: null },
+  is_reimbursable: { type: Boolean, default: false },
+  payment_source: { type: String, default: null },
+  related_founder: { type: String, default: null },
+  notes: { type: String, default: null },
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
 });

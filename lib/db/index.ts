@@ -6,3 +6,4 @@ export * from './models/docs';
 export * from './models/calendar';
 export * from './models/meta';
 export * from './models/google';
+export * from './models/tickets';

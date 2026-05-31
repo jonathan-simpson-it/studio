@@ -149,6 +149,11 @@ export async function getUserTasks(userId: string) {
   return toPlain(await Task.find({ assignee_id: userId, status: { $ne: 'Done' } }).sort({ created_at: -1 }).lean({ virtuals: true }));
 }
 
+export async function getTask(id: string) {
+  await connect();
+  return toPlain(await Task.findById(id).lean({ virtuals: true }));
+}
+
 export async function getTaskStats() {
   await connect();
   const total = await Task.countDocuments({ status: { $ne: 'Done' } });

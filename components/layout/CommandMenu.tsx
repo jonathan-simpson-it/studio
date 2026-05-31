@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Users,
@@ -354,6 +354,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
     >
       <DialogContent className="top-[15%] translate-y-0 max-w-lg">
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">Search pages and records</DialogDescription>
         <div className="space-y-2">
           <div className="flex items-center border-b pb-2">
             <Input

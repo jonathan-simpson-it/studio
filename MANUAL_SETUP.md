@@ -4,112 +4,145 @@ This document covers everything that cannot be done by the build process and mus
 
 ---
 
-## 1. Supabase Setup
+## 1. MongoDB Atlas Setup
 
-### 1.1 Create Project
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Choose a strong database password and save it
-3. Note your project URL and anon key from **Project Settings → API**
-4. Note your `service_role` key from the same page
+### 1.1 Create Cluster
+1. Go to [mongodb.com/atlas](https://mongodb.com/atlas) and sign up or log in
+2. Click **Build a Cluster** and choose the M0 free tier (or higher for production)
+3. Select a cloud provider and region (choose one close to your users)
+4. Name your cluster (e.g. `studio-prod`)
 
-### 1.2 Run Migration
-1. Open your Supabase project dashboard
-2. Go to **SQL Editor**
-3. Open `supabase/migrations/001_initial.sql` from this project
-4. Paste and execute the entire file
-5. Verify all tables were created (you should see 22 tables)
+### 1.2 Configure Network Access
+1. Go to **Network Access** in the left sidebar
+2. Click **Add IP Address**
+3. For development: add your current IP
+4. For production (Vercel): add `0.0.0.0/0` (allow from anywhere — MongoDB Atlas handles auth via connection string credentials)
+5. Click **Confirm**
 
-### 1.3 Create Storage Bucket
-1. Go to **Storage** in the Supabase dashboard
-2. Create a new bucket called `studio-files`
-3. Set it to **private** (not public)
-4. Add an RLS policy using the SQL Editor:
+### 1.3 Create Database User
+1. Go to **Database Access** in the left sidebar
+2. Click **Add New Database User**
+3. Choose **Password** authentication method
+4. Set username and password (save these securely)
+5. Under **Built-in Role**, select **Read and write to any database**
+6. Click **Add User**
 
-```sql
-CREATE POLICY "founders_all_studio_files" ON storage.objects
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'founder')
-  );
+### 1.4 Get Connection String
+1. Go to **Database → Connect**
+2. Choose **Drivers**
+3. Select **Node.js** and version **6.0 or later**
+4. Copy the connection string
+5. Replace `<password>` with your database user's password
+6. Replace `<dbname>` with your database name (e.g. `prod`)
+
+Your connection string should look like:
+```
+mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/prod?appName=Cluster0
 ```
 
-### 1.4 Create Auth Users
-1. Go to **Authentication → Users**
-2. Click **Add User**
-3. Create a user for Lewis Simpson: `lewis@jonathansimpson.co`
-4. Create a user for Devano Jonathan: `devano@jonathansimpson.co`
-5. Note their UUIDs from the user list
+### 1.5 Enable Backup (Production Only)
+1. Go to your cluster
+2. Click the **...** menu and select **Edit Configuration**
+3. Enable **Cloud Backups** and choose a schedule
+4. For M0 clusters, backups must be taken manually — upgrade to M2+ for automated snapshots
 
-### 1.5 Seed Users Table
-Run the following in SQL Editor (replace UUIDs with actual values):
-
-```sql
-INSERT INTO users (id, email, full_name, role)
-VALUES
-  ('ACTUAL-AUTH-UUID-LEWIS', 'lewis@jonathansimpson.co', 'Lewis Simpson', 'founder'),
-  ('ACTUAL-AUTH-UUID-DEVANO', 'devano@jonathansimpson.co', 'Devano Jonathan', 'founder');
-```
-
-### 1.6 Set Up Row-Level Security
-The migration already enables RLS on all tables and creates founder policies.
-Verify by checking **Authentication → Policies** in the dashboard.
-
-### 1.7 Enable Point-in-Time Recovery (PITR)
-Go to **Project Settings → Database** and enable PITR for daily automated backups.
+**No manual migration step is needed.** Mongoose auto-creates collections and indexes on first write. Keep your Mongoose models in `lib/db/models/` as the source of truth.
 
 ---
 
-## 2. Vercel Deployment
+## 2. OAuth App Configuration
 
-### 2.1 Create Project
+### 2.1 GitHub OAuth
+1. Go to GitHub **Settings → Developer Settings → OAuth Apps → New OAuth App**
+2. **Application name:** `Studio (Production)`
+3. **Homepage URL:** `https://studio.jonathansimpson.co`
+4. **Authorization callback URL:** `https://studio.jonathansimpson.co/api/auth/callback/github`
+5. Click **Register application**
+6. Copy the **Client ID**
+7. Click **Generate a new client secret** and copy the secret
+8. Set `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET` in Vercel
+
+For local development, create a separate OAuth app with callback URL `http://localhost:3000/api/auth/callback/github`.
+
+### 2.2 Google OAuth (Calendar + Gmail)
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project or select an existing one
+3. Go to **APIs & Services → Library**
+4. Enable **Google Calendar API** and **Gmail API**
+5. Go to **APIs & Services → Credentials**
+6. Click **Create Credentials → OAuth 2.0 Client ID**
+7. If not configured, set the **OAuth consent screen** (External, add your email as test user)
+8. **Application type:** Web application
+9. **Name:** `Studio (Production)`
+10. **Authorized redirect URIs:** `https://studio.jonathansimpson.co/api/auth/callback/google`
+11. Click **Create**
+12. Copy the **Client ID** and **Client Secret**
+13. Set `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` in Vercel
+
+For local development, create a separate OAuth client with redirect URI `http://localhost:3000/api/auth/callback/google`.
+
+---
+
+## 3. Vercel Deployment
+
+### 3.1 Create Project
 1. Push the code to a GitHub repository
 2. Go to [vercel.com](https://vercel.com) and import the repo
-3. Set the **Framework Preset** to Next.js
-4. Set the **Root Directory** to `studio/` (if this project is in a subdirectory)
+3. The **Framework Preset** will auto-detect Next.js
+4. If this project is in a subdirectory, set the **Root Directory**
 
-### 2.2 Environment Variables
-Add ALL variables from `.env.local` to Vercel:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+### 3.2 Environment Variables
+Add ALL variables from the template to Vercel:
+- `MONGODB_URI`
+- `AUTH_SECRET` (generate: `openssl rand -hex 32`)
+- `AUTH_GITHUB_ID`
+- `AUTH_GITHUB_SECRET`
+- `AUTH_GOOGLE_ID`
+- `AUTH_GOOGLE_SECRET`
+- `FOUNDER_INVITE_CODE` (choose a secret value)
 - `GITHUB_TOKEN`
 - `GITHUB_ORG`
 - `OPENROUTER_API_KEY`
 - `RESEND_API_KEY`
 - `EMAIL_FROM` (default: `studio@jonathansimpson.co`)
-- `ENCRYPTION_KEY` (generate a 32-byte hex string)
+- `ENCRYPTION_KEY` (generate: `openssl rand -hex 32`)
 - `NEXT_PUBLIC_APP_URL` (default: `https://studio.jonathansimpson.co`)
-- `CRON_SECRET` (generate a random string)
+- `CRON_SECRET` (generate: `openssl rand -hex 16`)
 
-### 2.3 Custom Domain
+### 3.3 Custom Domain
 1. Go to **Project Settings → Domains**
 2. Add `studio.jonathansimpson.co`
 3. Configure DNS as instructed by Vercel
 
-### 2.4 Verify Cron Jobs
+### 3.4 Verify Cron Jobs
 1. Go to **Deployments** and trigger a manual deploy
 2. After deployment, check **Project Settings → Cron Jobs**
-3. Verify two jobs exist:
+3. Verify jobs exist for:
    - `/api/cron/sync-github` — every 30 minutes
    - `/api/cron/check-overdue` — daily at 1 AM UTC
+   - `/api/cron/send-reminders` — daily
+   - `/api/cron/sync-google-calendars` — periodic
+   - `/api/cron/sync-gmail` — periodic
+   - `/api/cron/sync-feeds` — periodic
 
 ---
 
-## 3. External Service Setup
+## 4. External Service Setup
 
-### 3.1 Resend
+### 4.1 Resend
 1. Create an account at [resend.com](https://resend.com)
 2. Add and verify the domain `studio.jonathansimpson.co`
 3. Create an API key and add it to Vercel as `RESEND_API_KEY`
 4. Add the API key in the app: Settings → Integrations → Resend
 
-### 3.2 OpenRouter
+### 4.2 OpenRouter
 1. Create an account at [openrouter.ai](https://openrouter.ai)
 2. Generate an API key from the dashboard
 3. Add it to Vercel as `OPENROUTER_API_KEY`
 4. Add the API key in the app: Settings → Integrations → OpenRouter
 5. Use the per-model **Ping** buttons in Settings → Integrations → AI Models to verify each model responds
 
-### 3.3 GitHub
+### 4.3 GitHub
 1. Create a GitHub Personal Access Token (classic) with `repo` scope
 2. Add it to Vercel as `GITHUB_TOKEN`
 3. Add `GITHUB_ORG` to Vercel
@@ -117,14 +150,21 @@ Add ALL variables from `.env.local` to Vercel:
 5. Enter the GitHub org name
 6. Click "Test Connection" to verify
 
-### 3.4 Encryption Key
+### 4.4 Google
+1. After configuring OAuth (section 2.2), sign in to Studio
+2. Go to **Settings → Integrations → Google**
+3. Click "Connect Google Account"
+4. Grant Calendar and Gmail permissions
+5. Verify the connection appears in Settings
+
+### 4.5 Encryption Key
 Generate a 32-byte hex string for the `ENCRYPTION_KEY`:
 ```bash
 openssl rand -hex 32
 ```
 This encrypts API keys stored in the `integrations` table.
 
-### 3.5 Cron Secret
+### 4.6 Cron Secret
 Generate a random string for `CRON_SECRET`:
 ```bash
 openssl rand -hex 16
@@ -133,64 +173,79 @@ This protects cron endpoints from unauthorized access.
 
 ---
 
-## 4. Post-Launch Configuration
+## 5. Post-Launch Configuration
 
-### 4.1 Agency Settings
-1. Log in to Studio
-2. Go to **Settings → Agency**
-3. Set the agency address (for invoices/proposals)
-4. Set default currency
-5. Upload agency logo (appears on PDF documents)
+### 5.1 Register Founders
+1. Navigate to `https://studio.jonathansimpson.co/register`
+2. Enter the invite code set as `FOUNDER_INVITE_CODE`
+3. Register each founder with their email and a strong password
+4. Founders can also link their GitHub and Google accounts from Settings
 
-### 4.2 Profile Settings
+### 5.2 Agency Settings
+1. Go to **Settings → Agency**
+2. Set the agency address (appears on invoices/proposals)
+3. Set default currency
+4. Upload agency logo (appears on PDF documents)
+
+### 5.3 Profile Settings
 1. Each founder should go to **Settings → Profile**
 2. Set their timezone (Lewis in HKT, Devano in his timezone)
 3. Set default hourly rate if using time tracking
 
-### 4.3 Templates
+### 5.4 Templates
 1. Go to **Settings → Templates**
 2. Set default invoice payment terms
 3. Set default proposal payment terms
 4. Set default proposal scope template
 
-### 4.4 Project Templates (Optional)
+### 5.5 Project Templates (Optional)
 1. Go to **Settings → Templates**
 2. Create project templates with default task lists
 3. Use these when creating new projects
 
-### 4.5 API Keys (For Agent Integrations)
+### 5.6 API Keys (For Agent Integrations)
 1. Go to **Settings → Integrations → API Keys**
 2. Click "Generate Key"
-3. Name it (e.g., "Agent Bot")
+3. Name it (e.g., "Agent Bot" or "CRM Integration")
 4. Select scope (read/write/full)
 5. Copy the key immediately — it is shown only once
 6. The raw key is never stored, only its hash
 
+### 5.7 CRM API Key (Portfolio Site)
+If your portfolio site sends leads to Studio:
+1. Generate an API key with `write` scope (section 5.6)
+2. Add it as `CRM_API_KEY` on the portfolio site
+3. Test: `curl -X POST https://studio.jonathansimpson.co/api/leads -H "Authorization: Bearer <key>" -H "Content-Type: application/json" -d '{"contact_name":"Test","email":"test@example.com"}'`
+
 ---
 
-## 5. Things the Build Cannot Do
+## 6. Things the Build Cannot Do
 
 | Task | Reason |
 |------|--------|
-| Create Supabase project | Requires your Supabase account and billing |
-| Run SQL migrations | Requires Supabase dashboard access |
-| Create Auth users | Manual step in Supabase Auth dashboard |
+| Create MongoDB Atlas cluster | Requires your MongoDB account and billing |
+| Configure network access | Manual step in MongoDB Atlas dashboard |
+| Create database user | Manual step in MongoDB Atlas dashboard |
+| Set environment variables | API keys are secrets, not committed |
 | Configure DNS | Requires your domain registrar |
 | Create Vercel project | Requires your Vercel account |
-| Set environment variables | API keys are secrets, not committed |
-| Create Resend account | Requires your email and verification |
-| Create DeepSeek API key | Requires your DeepSeek account |
+| Create OAuth apps (GitHub/Google) | Requires your GitHub and Google Cloud accounts |
+| Create Resend account | Requires your email and domain verification |
+| Create OpenRouter API key | Requires your OpenRouter account |
 | Create GitHub token | Requires your GitHub account |
+| Register founders | Must be done post-deployment via `/register` |
 | Upload agency logo | Manual file upload via Settings UI |
 | Add API keys in Settings UI | Done after login, not during build |
 | Verify external connections | Manual "Test Connection" button clicks |
 
 ---
 
-## 6. First Login
+## 7. First Login
 
 1. Navigate to `https://studio.jonathansimpson.co` (or `http://localhost:3000` locally)
-2. Log in with the email/password created in Supabase Auth
-3. You'll land on the Dashboard
-4. Start by configuring Settings → Agency and Settings → Integrations
-5. Create your first lead or project
+2. Click **Register** and enter your invite code
+3. Create your account with email and password
+4. You'll land on the Dashboard
+5. Start by configuring Settings → Agency and Settings → Integrations
+6. Connect your Google account for Calendar + Gmail sync
+7. Create your first lead or project

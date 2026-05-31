@@ -788,9 +788,11 @@ export default function SettingsPage() {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="read">Read — only read data</SelectItem>
-                  <SelectItem value="write">Write — create and update data</SelectItem>
-                  <SelectItem value="full">Full — all permissions</SelectItem>
+                  {(['read', 'write', 'full'] as const).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s === 'read' ? 'Read — only read data' : s === 'write' ? 'Write — create and update data' : 'Full — all permissions'}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

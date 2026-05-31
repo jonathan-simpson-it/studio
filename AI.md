@@ -41,7 +41,7 @@ Generate content for any registered AI action.
 }
 ```
 
-**Authentication:** Supabase session cookie (for humans) or `Authorization: Bearer <api_key>` (for agents with `write` or `full` scope).
+**Authentication:** Auth.js session cookie (for humans) or `Authorization: Bearer <api_key>` (for agents with `write` or `full` scope).
 
 **cURL example:**
 ```bash
@@ -77,7 +77,7 @@ List all registered models and the action-to-model mapping.
 }
 ```
 
-**Authentication:** Supabase session or API key with `read` scope.
+**Authentication:** Auth.js session or API key with `read` scope.
 
 ---
 
@@ -176,4 +176,58 @@ generateAIContent()   → public: returns content string only
 generateWithFallback() → public: retries with fast on failure, returns metadata
 testModel()           → public: minimal ping for latency check
 getActionModelMap()   → public: returns action→model mapping for Settings UI
+
+---
+
+## Capabilities & Case Studies
+
+### AI Service Offerings
+
+| Capability | Description |
+|---|---|
+| Intelligent Chatbots & Voice Agents | Conversational AI for customer support and lead qualification |
+| RAG Systems | Retrieval-Augmented Generation for document Q&A and knowledge bases |
+| Workflow Automation Pipelines | Multi-step agentic workflows with human-in-the-loop checkpoints |
+| Predictive Analytics Models | Forecast revenue, churn, and resource needs from historical data |
+| Computer Vision Solutions | Object detection (YOLO), OCR (EasyOCR), image classification |
+| Recommendation Engines | Personalised content and product suggestions |
+| AI Content Engines | Generate blog posts, social content, and marketing copy at scale |
+| Automated Meeting Assistants | Transcribe, summarise, and extract action items from meetings |
+| Agentic Task Orchestrators | Coordinate multiple AI agents to execute complex business processes |
+| Smart IoT & Physical Security | AI-powered camera analytics and sensor data processing |
+| Personalized Performance Reporting | Generate client-facing reports with narrative and charts |
+| Human-in-the-Loop Training | Upskill teams to supervise and manage AI agents effectively |
+| AI Search & Information Retrieval | Semantic search across documents, emails, and knowledge bases |
+| EdTech AI Builders | AI-powered learning platforms, assessment tools, and tutoring systems |
+
+### Built Solutions
+
+| Solution | Description |
+|---|---|
+| **AgenticMail** | Full email/SMS capabilities for AI agents |
+| **ClawdTalk** | Phone calling + SMS integration for AI agents |
+| **RentAHuman** | Marketplace where AI agents hire humans for physical-world tasks |
+| **Virtuals** | Tokenized infrastructure for managing and monetising AI agents |
+
+### Case Studies
+
+| Project | Type |
+|---|---|
+| Planfast.today | Productivity / Planning |
+| Shipmas-advent.com | E-commerce / Advent calendar |
+| challenge.lwhsolutions.co.uk | Gamified learning |
+| Tennis serve analysis model | Computer Vision / Sports analytics |
+| Jiffy calendar | Calendar / Scheduling |
+| Studycat library & help centre | EdTech / Knowledge base |
+| Informatics Sport & Tennis logos | Graphic design / Branding |
+| Compsoc Instagram | Social media / Community |
+
+### Common Business Use Cases (2026)
+
+| Category | Examples |
+|---|---|
+| Communication & CRM | Email management (120K+ installs), Telegram bots for 24/7 support, Personal CRM |
+| Marketing & Sales | AI-powered lead generation, LinkedIn/Apollo integration, social media performance trackers |
+| Operations & Productivity | Calendar & scheduling (88K+ installs), monday.com automation, automated content publishing |
+| Web & Finance | Playwright scraping for complex sites, database querying, crypto/finance tracking |
 ```

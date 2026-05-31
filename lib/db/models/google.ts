@@ -58,6 +58,7 @@ export interface IInboxMessage extends Document {
   subject: string;
   snippet: string;
   body_plain: string;
+  body_html: string;
   ai_summary: string;
   importance: MessageImportance;
   action_needed: boolean;
@@ -78,6 +79,7 @@ const inboxMessageSchema = new Schema<IInboxMessage>({
   subject: { type: String, default: '' },
   snippet: { type: String, default: '' },
   body_plain: { type: String, default: '' },
+  body_html: { type: String, default: '' },
   ai_summary: { type: String, default: '' },
   importance: { type: String, enum: ['high', 'medium', 'low'], default: 'medium' },
   action_needed: { type: Boolean, default: false },

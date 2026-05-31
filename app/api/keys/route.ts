@@ -11,11 +11,21 @@ export async function GET() {
   await connect()
 
   const data = await ApiKey.find()
-    .select("id name key_prefix scope is_active last_used_at created_at")
+    .select("name key_prefix scope is_active last_used_at created_at")
     .sort({ created_at: -1 })
     .lean({ virtuals: true })
 
-  return NextResponse.json(data)
+  const result = data.map((key: any) => ({
+    id: (key._id || key.id).toString(),
+    name: key.name,
+    key_prefix: key.key_prefix,
+    scope: key.scope,
+    is_active: key.is_active,
+    last_used_at: key.last_used_at,
+    created_at: key.created_at,
+  }))
+
+  return NextResponse.json(result)
 }
 
 export async function POST(request: NextRequest) {
@@ -85,7 +95,9 @@ export async function DELETE(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const id = request.nextUrl.searchParams.get("id")
-  if (!id) return NextResponse.json({ error: "id query param required" }, { status: 400 })
+  if (!id || !/^[a-f\d]{24}$/i.test(id)) {
+    return NextResponse.json({ error: "Valid id query param required" }, { status: 400 })
+  }
 
   await connect()
   await ApiKey.findByIdAndDelete(id)

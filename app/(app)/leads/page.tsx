@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listLeads, createLead, updateLeadStage, getLeadsWithHeatScores, deleteLead } from '@/lib/db/actions/leads';
+import { createLead, updateLeadStage, getLeadsWithHeatScores, deleteLead } from '@/lib/db/actions/leads';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { HeatScore } from '@/components/shared/HeatScore';
+import { KanbanBoard } from '@/components/shared/KanbanBoard';
+import { BoardToolbar } from '@/components/shared/BoardToolbar';
 import {
   Sheet,
   SheetContent,
@@ -31,62 +33,181 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import { formatDate, formatCurrency } from '@/lib/utils';
 import {
-  LayoutGrid,
-  Table2,
   Plus,
-  Search,
-  GripVertical,
-  User,
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
-import { HeatScore } from '@/components/shared/HeatScore';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { calculateHeatScore } from '@/lib/heat-score';
-import { formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Lead, Proposal } from '@/types';
+import type { Lead } from '@/types';
 
-const stages = ['New', 'Contacted', 'Discovery', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'];
+const stages = ['New', 'Contacted', 'Proposal Sent', 'Won', 'Lost'];
+
+const columnColors: Record<string, string> = {
+  New: 'bg-blue-500',
+  Contacted: 'bg-zinc-500',
+  'Proposal Sent': 'bg-purple-500',
+  Won: 'bg-emerald-500',
+  Lost: 'bg-red-500',
+};
+
+const legacyStageMap: Record<string, string> = {
+  Discovery: 'Proposal Sent',
+  Negotiation: 'Proposal Sent',
+};
+
+function mapStage(stage: string): string {
+  return legacyStageMap[stage] || stage;
+}
+
+function LeadCardContent({ lead }: { lead: Lead }) {
+  const router = useRouter();
+
+  return (
+    <Card
+      className="transition-colors hover:bg-accent/50 cursor-pointer"
+      onClick={() => router.push(`/leads/${lead.id}`)}
+    >
+      <CardContent className="p-3 space-y-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium">{lead.company_name}</p>
+            <p className="text-xs text-muted-foreground">{lead.contact_name}</p>
+          </div>
+          <HeatScore score={lead.heat_score || 0} />
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            {lead.estimated_value > 0
+              ? formatCurrency(lead.estimated_value, lead.currency)
+              : '—'}
+          </span>
+          <span>{lead.last_contacted_at ? formatDate(lead.last_contacted_at) : 'New'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={lead.stage} />
+          {lead.source && <span className="text-[10px] text-muted-foreground">{lead.source}</span>}
+          {lead.stage === 'Won' && lead.converted_at && (
+            <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
+              ✓ Client
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeadTable({ leads, onDelete }: { leads: Lead[]; onDelete: (lead: Lead) => void }) {
+  const router = useRouter();
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b text-left text-xs text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Contact</th>
+              <th className="px-4 py-3 font-medium">Value</th>
+              <th className="px-4 py-3 font-medium">Stage</th>
+              <th className="px-4 py-3 font-medium">Heat</th>
+              <th className="px-4 py-3 font-medium">Source</th>
+              <th className="px-4 py-3 w-10"></th>
+              <th className="px-4 py-3 font-medium">Last Contact</th>
+              <th className="px-4 py-3 font-medium">Next Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leads.map((lead) => (
+              <tr
+                key={lead.id}
+                className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
+                onClick={() => router.push(`/leads/${lead.id}`)}
+              >
+                <td className="px-4 py-3 font-medium">{lead.company_name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.contact_name}</td>
+                <td className="px-4 py-3">
+                  {lead.estimated_value > 0 ? formatCurrency(lead.estimated_value, lead.currency) : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={lead.stage} />
+                </td>
+                <td className="px-4 py-3">
+                  <HeatScore score={lead.heat_score || 0} />
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.source || '—'}</td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem className="text-destructive" onClick={() => onDelete(lead)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {lead.last_contacted_at ? formatDate(lead.last_contacted_at) : '—'}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.next_action || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LeadsPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
     queryFn: getLeadsWithHeatScores,
   });
-  const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'kanban' | 'table'>('kanban');
+  const [filterStage, setFilterStage] = useState('');
+  const [filterSource, setFilterSource] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
 
-  const proposalsMap = useMemo(() => {
-    const pmap: Record<string, Proposal | null> = {};
-    for (const lead of leads) {
-      if (lead.stage === 'Proposal Sent') {
-        pmap[lead.id] = null;
-      }
-    }
-    return pmap;
-  }, [leads]);
-
-  async function handleStageChange(leadId: string, newStage: string) {
-    try {
-      await updateLeadStage(leadId, newStage);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update stage');
-      return;
-    }
-
-    queryClient.setQueryData<Lead[]>(['leads'], (prev) =>
-      (prev ?? []).map((l) =>
-        l.id === leadId ? { ...l, stage: newStage as Lead['stage'], stage_changed_at: new Date().toISOString() } : l
-      )
+  const filtered = leads.filter((l) => {
+    if (filterStage && filterStage !== '_all' && mapStage(l.stage) !== filterStage) return false;
+    if (filterSource && filterSource !== '_all' && l.source !== filterSource) return false;
+    return (
+      l.company_name.toLowerCase().includes(search.toLowerCase()) ||
+      l.contact_name.toLowerCase().includes(search.toLowerCase())
     );
-    toast.success('Lead stage updated');
-  }
+  });
+
+  const handleStatusChange = useCallback(
+    async (leadId: string, newStage: string) => {
+      queryClient.setQueryData<Lead[]>(['leads'], (prev) =>
+        (prev ?? []).map((l) =>
+          l.id === leadId ? { ...l, stage: newStage as Lead['stage'], stage_changed_at: new Date().toISOString() } : l
+        )
+      );
+      try {
+        await updateLeadStage(leadId, newStage);
+        if (newStage === 'Won') {
+          toast.success('Lead marked as Won. Open the detail to convert to client.');
+        } else {
+          toast.success(`Lead moved to ${newStage}`);
+        }
+      } catch (err) {
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
+        toast.error(err instanceof Error ? err.message : 'Failed to update stage');
+      }
+    },
+    [queryClient]
+  );
 
   async function handleDelete(lead: Lead) {
     try {
@@ -99,198 +220,85 @@ export default function LeadsPage() {
     }
   }
 
-  const filtered = leads.filter(
-    (l) =>
-      l.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      l.contact_name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const leadsByStage = stages.reduce(
-    (acc, stage) => {
-      acc[stage] = filtered.filter((l) => l.stage === stage);
-      return acc;
-    },
-    {} as Record<string, Lead[]>
-  );
+  const sources = [...new Set(leads.map((l) => l.source).filter(Boolean))] as string[];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search leads..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-64 pl-9"
-            />
-          </div>
-          <div className="flex items-center rounded-lg border p-0.5">
-            <Button
-              variant={view === 'kanban' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setView('kanban')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={view === 'table' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setView('table')}
-            >
-              <Table2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
-          <SheetTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Lead
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>New Lead</SheetTitle>
-            </SheetHeader>
-            <LeadForm
-              onSubmit={async (data) => {
-                try {
-                  await createLead(data as Record<string, unknown>);
-                  toast.success('Lead created');
-                  setShowNewSheet(false);
-                  queryClient.invalidateQueries({ queryKey: ['leads'] });
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : 'Failed to create lead');
-                }
-              }}
-            />
-          </SheetContent>
-        </Sheet>
-      </div>
+      <BoardToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search leads..."
+        view={view}
+        onViewChange={setView}
+        filters={[
+          {
+            key: 'stage',
+            label: 'Stage',
+            placeholder: 'Stage',
+            options: [
+              { label: 'All', value: '_all' },
+              { label: 'New', value: 'New' },
+              { label: 'Contacted', value: 'Contacted' },
+              { label: 'Proposal Sent', value: 'Proposal Sent' },
+              { label: 'Won', value: 'Won' },
+              { label: 'Lost', value: 'Lost' },
+            ],
+            value: filterStage,
+            onChange: setFilterStage,
+          },
+          {
+            key: 'source',
+            label: 'Source',
+            placeholder: 'Source',
+            options: [
+              { label: 'All', value: '_all' },
+              ...sources.map((s) => ({ label: s, value: s })),
+            ],
+            value: filterSource,
+            onChange: setFilterSource,
+          },
+        ]}
+        createButton={
+          <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> New Lead
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>New Lead</SheetTitle>
+              </SheetHeader>
+              <LeadForm
+                onSubmit={async (data) => {
+                  try {
+                    await createLead(data as Record<string, unknown>);
+                    toast.success('Lead created');
+                    setShowNewSheet(false);
+                    queryClient.invalidateQueries({ queryKey: ['leads'] });
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to create lead');
+                  }
+                }}
+              />
+            </SheetContent>
+          </Sheet>
+        }
+      />
 
       {view === 'kanban' ? (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {stages.map((stage) => (
-            <div key={stage} className="min-w-[240px] flex-shrink-0">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-medium">{stage}</h3>
-                <Badge variant="secondary" className="text-[10px]">
-                  {leadsByStage[stage].length}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                {leadsByStage[stage].map((lead) => {
-                  const heatScore = calculateHeatScore(lead, proposalsMap[lead.id]);
-                  return (
-                    <Card
-                      key={lead.id}
-                      className="cursor-pointer transition-colors hover:bg-accent/50"
-                      onClick={() => router.push(`/leads/${lead.id}`)}
-                    >
-                      <CardContent className="p-3 space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="text-sm font-medium">{lead.company_name}</p>
-                            <p className="text-xs text-muted-foreground">{lead.contact_name}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <HeatScore score={heatScore} />
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  <MoreHorizontal className="h-3 w-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(lead)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>
-                            {lead.estimated_value > 0
-                              ? formatCurrency(lead.estimated_value, lead.currency)
-                              : '—'}
-                          </span>
-                          <span>{lead.last_contacted_at ? formatDate(lead.last_contacted_at) : 'New'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={lead.stage} />
-                          {lead.source && <span className="text-[10px] text-muted-foreground">{lead.source}</span>}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <KanbanBoard
+          columns={stages}
+          items={filtered}
+          getItemId={(l) => l.id}
+          getItemStatus={(l) => mapStage(l.stage)}
+          onStatusChange={handleStatusChange}
+          renderCard={(lead) => <LeadCardContent lead={lead} />}
+          columnColors={columnColors}
+          emptyMessage="No leads"
+        />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Company</th>
-                  <th className="px-4 py-3 font-medium">Contact</th>
-                  <th className="px-4 py-3 font-medium">Value</th>
-                  <th className="px-4 py-3 font-medium">Stage</th>
-                  <th className="px-4 py-3 font-medium">Heat</th>
-                  <th className="px-4 py-3 font-medium">Source</th>
-                  <th className="px-4 py-3 w-10"></th>
-                  <th className="px-4 py-3 font-medium">Last Contact</th>
-                  <th className="px-4 py-3 font-medium">Next Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((lead) => (
-                  <tr
-                    key={lead.id}
-                    className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
-                    onClick={() => router.push(`/leads/${lead.id}`)}
-                  >
-                    <td className="px-4 py-3 font-medium">{lead.company_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{lead.contact_name}</td>
-                    <td className="px-4 py-3">
-                      {lead.estimated_value > 0 ? formatCurrency(lead.estimated_value, lead.currency) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={lead.stage} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <HeatScore score={calculateHeatScore(lead, proposalsMap[lead.id])} />
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{lead.source || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {lead.last_contacted_at ? formatDate(lead.last_contacted_at) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{lead.next_action || '—'}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(lead)}>
-                            <Trash2 className="h-4 w-4 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <LeadTable leads={filtered} onDelete={(lead) => setDeleteTarget(lead)} />
       )}
 
       <ConfirmDeleteDialog
@@ -313,7 +321,7 @@ function LeadForm({ onSubmit }: { onSubmit: (data: Partial<Lead>) => Promise<voi
     source: 'Inbound',
     estimated_value: 0,
     currency: 'HKD',
-    stage: 'New' as const,
+    stage: 'New',
   });
 
   return (

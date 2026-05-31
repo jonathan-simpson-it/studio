@@ -63,7 +63,11 @@ export function ConfirmDeleteDialog({ open, onOpenChange, entityName, entityType
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder={entityName}
               disabled={deleting}
+              className={confirmText && !isMatch ? 'border-destructive' : ''}
             />
+            {confirmText && !isMatch && (
+              <p className="text-xs text-destructive">Names don&apos;t match</p>
+            )}
           </div>
         </div>
         <DialogFooter>

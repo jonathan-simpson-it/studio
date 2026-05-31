@@ -62,7 +62,7 @@ export function calculateHeatScore(lead: Lead, mostRecentProposal?: Proposal | n
   }
 
   // Stage bonus
-  if (lead.stage === 'Negotiation' || lead.stage === 'Won') score += 1;
+  if (lead.stage === 'Won') score += 1;
   if (lead.stage === 'Lost') return 1;
   if (lead.stage === 'New' && !lastContacted) score -= 0.5;
 

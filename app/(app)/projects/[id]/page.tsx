@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,6 +41,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { KanbanBoard } from '@/components/shared/KanbanBoard';
+import { BoardToolbar } from '@/components/shared/BoardToolbar';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { FileUpload } from '@/components/shared/FileUpload';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
@@ -70,6 +72,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showDelete, setShowDelete] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [editMilestone, setEditMilestone] = useState<Milestone | null>(null);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [taskView, setTaskView] = useState<'kanban' | 'table'>('kanban');
+  const [taskFilterPriority, setTaskFilterPriority] = useState('');
+  const [taskFilterStatus, setTaskFilterStatus] = useState('');
 
   const { data: project } = useQuery({
     queryKey: ['project', id],
@@ -149,6 +155,42 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       toast.error(err instanceof Error ? err.message : 'Failed to update milestone');
     }
   }
+
+  const taskColumnColors: Record<string, string> = {
+    Todo: 'bg-zinc-500',
+    'In Progress': 'bg-blue-500',
+    Bottlenecked: 'bg-amber-500',
+    Done: 'bg-emerald-500',
+  };
+
+  const filteredTasks = tasks.filter((t) => {
+    if (taskFilterPriority && taskFilterPriority !== '_all' && t.priority !== taskFilterPriority) return false;
+    if (taskFilterStatus && taskFilterStatus !== '_all' && t.status !== taskFilterStatus) return false;
+    return t.title.toLowerCase().includes(taskSearch.toLowerCase());
+  });
+
+  const handleTaskStatusChange = useCallback(
+    async (taskId: string, newStatus: string) => {
+      queryClient.setQueryData(['project', id], (prev: Record<string, unknown> | undefined) => {
+        if (!prev) return prev;
+        const oldTasks = (prev.tasks as Task[]) ?? [];
+        return {
+          ...prev,
+          tasks: oldTasks.map((t: Task) =>
+            t.id === taskId ? { ...t, status: newStatus as Task['status'] } : t
+          ),
+        } as Record<string, unknown>;
+      });
+      try {
+        await updateTask(taskId, { status: newStatus });
+        toast.success(`Task moved to ${newStatus}`);
+      } catch {
+        queryClient.invalidateQueries({ queryKey: ['project', id] });
+        toast.error('Failed to update task status');
+      }
+    },
+    [queryClient, id]
+  );
 
   if (!project) return null;
 
@@ -370,48 +412,138 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Sheet>
           </div>
 
-          <div className="grid grid-cols-4 gap-4">
-            {[['Todo', 'bg-zinc-500'], ['In Progress', 'bg-blue-500'], ['Bottlenecked', 'bg-amber-500'], ['Done', 'bg-emerald-500']].map(([status, color]) => (
-              <Card key={status as string}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xs font-medium">{status as string}</CardTitle>
-                    <Badge variant="secondary" className="text-[10px]">{tasks.filter((t) => t.status === status).length}</Badge>
+          <BoardToolbar
+            search={taskSearch}
+            onSearchChange={setTaskSearch}
+            searchPlaceholder="Search project tasks..."
+            view={taskView}
+            onViewChange={setTaskView}
+            filters={[
+              {
+                key: 'priority',
+                label: 'Priority',
+                placeholder: 'Priority',
+                options: [
+                  { label: 'All', value: '_all' },
+                  { label: 'Low', value: 'Low' },
+                  { label: 'Medium', value: 'Medium' },
+                  { label: 'High', value: 'High' },
+                  { label: 'Urgent', value: 'Urgent' },
+                ],
+                value: taskFilterPriority,
+                onChange: setTaskFilterPriority,
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                placeholder: 'Status',
+                options: [
+                  { label: 'All', value: '_all' },
+                  { label: 'Todo', value: 'Todo' },
+                  { label: 'In Progress', value: 'In Progress' },
+                  { label: 'Bottlenecked', value: 'Bottlenecked' },
+                  { label: 'Done', value: 'Done' },
+                ],
+                value: taskFilterStatus,
+                onChange: setTaskFilterStatus,
+              },
+            ]}
+          />
+
+          {taskView === 'kanban' ? (
+            <KanbanBoard
+              columns={['Todo', 'In Progress', 'Bottlenecked', 'Done']}
+              items={filteredTasks}
+              getItemId={(t: Task) => t.id}
+              getItemStatus={(t: Task) => t.status}
+              onStatusChange={handleTaskStatusChange}
+              renderCard={(task: Task) => (
+                <div className="group relative cursor-pointer" onClick={() => router.push(`/tasks/${task.id}`)}>
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm font-medium">{task.title}</p>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditTask(task); }}
+                        className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
+                        className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {tasks.filter((t) => t.status === status).map((t) => (
-                    <div key={t.id} className="rounded-md border p-2 text-sm space-y-1 group relative">
-                      <div className="flex items-start justify-between">
-                        <p className="font-medium">{t.title}</p>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => setEditTask(t)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent">
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button onClick={() => handleDeleteTask(t.id)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{t.priority}</span>
-                        {t.due_date && <span>Due {formatDate(t.due_date)}</span>}
-                      </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                    <span>{task.priority}</span>
+                    {task.due_date && <span>Due {formatDate(task.due_date)}</span>}
+                  </div>
+                </div>
+              )}
+              renderColumnExtra={(col) => {
+                if (col !== 'In Progress') return null;
+                return issues.filter((i) => i.state === 'open').map((i) => (
+                  <div key={i.id} className="rounded-md border border-primary/20 p-2 text-sm space-y-1">
+                    <div className="flex items-center gap-1">
+                      <ExternalLink className="h-3 w-3 text-primary" />
+                      <p className="font-medium">{i.title}</p>
                     </div>
-                  ))}
-                  {issues.filter((i) => status === 'In Progress' ? i.state === 'open' : false).map((i) => (
-                    <div key={i.id} className="rounded-md border border-primary/20 p-2 text-sm space-y-1">
-                      <div className="flex items-center gap-1">
-                        <ExternalLink className="h-3 w-3 text-primary" />
-                        <p className="font-medium">{i.title}</p>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">GitHub · {i.state}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <p className="text-[10px] text-muted-foreground">GitHub · {i.state}</p>
+                  </div>
+                ));
+              }}
+              columnColors={taskColumnColors}
+              emptyMessage="No tasks"
+            />
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Title</th>
+                      <th className="px-4 py-3 font-medium">Priority</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Due Date</th>
+                      <th className="px-4 py-3 font-medium">Milestone</th>
+                      <th className="px-4 py-3 w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTasks.map((t) => (
+                      <tr
+                        key={t.id}
+                        className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
+                        onClick={() => router.push(`/tasks/${t.id}`)}
+                      >
+                        <td className="px-4 py-3 font-medium">{t.title}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="text-[10px]">{t.priority}</Badge>
+                        </td>
+                        <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                        <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : '—'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {t.milestone_id ? milestones.find((m) => m.id === t.milestone_id)?.title || '—' : '—'}
+                        </td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setEditTask(t)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => handleDeleteTask(t.id)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="milestones" className="space-y-4">

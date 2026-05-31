@@ -16,14 +16,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const { company_name, contact_name, email, phone, message, persona, interest } = body
+  const { company_name, contact_name, email, phone, message, persona, interest, notes, services_interested, source, stage } = body
 
   if (!contact_name && !email) {
     return NextResponse.json({ error: "contact_name or email required" }, { status: 400 })
   }
 
   await connect()
-  const services = [persona, interest].filter(Boolean) as string[]
+  const services = Array.isArray(services_interested)
+    ? (services_interested as string[])
+    : [persona, interest].filter(Boolean) as string[]
 
   try {
     const data = await Lead.create({
@@ -31,10 +33,10 @@ export async function POST(request: NextRequest) {
       contact_name: (contact_name as string) || email?.toString().split("@")[0] || "Unknown",
       email: (email as string) || null,
       phone: (phone as string) || null,
-      source: "Inbound",
+      source: (source as string) || "Inbound",
       services_interested: services.length > 0 ? services : [],
-      notes: (message as string) || null,
-      stage: "New",
+      notes: (notes as string) || (message as string) || null,
+      stage: (stage as string) || "New",
     })
 
     const result = data.toObject({ virtuals: true })

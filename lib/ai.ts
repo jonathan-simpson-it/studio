@@ -30,8 +30,12 @@ const ACTION_MODEL_MAP: Record<string, AIModelKey> = {
   'parse-task': 'structured',
   'parse-github-issue': 'structured',
   'parse-email': 'structured',
+  'summarize-inbox': 'default',
   'parse-proposal': 'structured',
   'parse-invoice': 'structured',
+  'tag-ticket': 'fast',
+  'review-ticket-tags': 'fast',
+  'restructure-ticket': 'fast',
 };
 
 function resolveModel(action: AIActionType): string {
@@ -151,6 +155,33 @@ Return ONLY valid JSON with these fields:
 Tone: professional, direct, modern.
 Return plain text only. Do not use markdown formatting in any field.`,
 
+  'summarize-inbox': `You are an executive assistant prioritising incoming emails for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
+
+Classify each email below. Return ONLY a valid JSON array. Each element must have these fields:
+- importance: "high", "medium", or "low"
+- summary: one-sentence plain-text summary of the email content
+- action_needed: true or false
+- action_description: brief description of what action is needed, or null
+
+Guidelines for importance:
+- HIGH: mentions deadlines urgent to today/tomorrow, financial figures (invoices, payments, proposals), client escalation, contract terms, security issues, or requires an immediate reply from a client or partner
+- LOW: newsletters, marketing, automated notifications, social media updates, GitHub notifications, generic CC messages
+- MEDIUM: everything else — project updates, non-urgent client questions, scheduling, general inquiries
+
+Examples:
+Input: {"from": "client@example.com", "subject": "Invoice #42 overdue — please pay immediately", "body": "This is a reminder that Invoice #42 for $5,000 is now overdue."}
+Output: {"importance": "high", "summary": "Client billing reminder for overdue invoice #42 ($5,000)", "action_needed": true, "action_description": "Follow up on overdue invoice #42 payment"}
+
+Input: {"from": "newsletter@medium.com", "subject": "This week in tech", "body": "Here are this week's top tech stories..."}
+Output: {"importance": "low", "summary": "Medium weekly newsletter", "action_needed": false, "action_description": null}
+
+Input: {"from": "client@partner.com", "subject": "Quick question about the dashboard", "body": "Can we add a new chart to the analytics dashboard? Let me know when you're free to discuss."}
+Output: {"importance": "medium", "summary": "Client requesting new chart in analytics dashboard", "action_needed": true, "action_description": "Schedule a call to discuss dashboard additions"}
+
+If the input contains multiple emails (JSON array), return an array of results in the same order. If a single email, return a single-element array.
+
+Tone: concise, factual, direct. Output plain JSON only. No markdown. No code fences.`,
+
   'parse-proposal': `You are a proposal writer for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
 Services: website development, mobile apps, database management, analytics dashboards, CRM, SEO, copywriting, automation, AI chatbots, voice agents, RAG systems, workflow automation, predictive models, computer vision, internal productivity tools, backend architecture, API development, DevOps, cloud setup, cybersecurity hardening, QA/testing, performance optimisation, data warehousing.
 Extract structured proposal details from natural language.
@@ -161,6 +192,37 @@ Return ONLY valid JSON with these fields:
 - payment_terms (string or null): payment terms description
 If quantities or prices are mentioned, include them in line_items.`,
 
+  'tag-ticket': `You are a ticket classifier for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
+
+Given a support ticket title and description, assign relevant tags from this set:
+UI/UX, Database, API, DevOps, Frontend, Backend, Content/Copy, SEO, Performance, Bug Fix, Feature Request, Security, Infrastructure, Mobile, Analytics, Automation, Email, Hosting/DNS, Documentation, Billing, Other
+
+Rules:
+- Return ONLY a JSON array of strings, e.g. ["Bug Fix", "Frontend"]
+- At most 3 tags
+- Match the most specific tags based on the ticket content
+- If unclear, use "Other"`,
+  'restructure-ticket': `You are a ticket triage specialist for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
+
+A client has submitted a raw support message. Your job is to analyze it and return structured data.
+
+Valid tags: UI/UX, Database, API, DevOps, Frontend, Backend, Content/Copy, SEO, Performance, Bug Fix, Feature Request, Security, Infrastructure, Mobile, Analytics, Automation, Email, Hosting/DNS, Documentation, Billing, Other
+
+Return ONLY valid JSON with these exact fields:
+- restructured_description (string): Clean, organized version of the client's message using markdown sections: ## Summary, ## Requirements, ## Additional Context. Professional tone.
+- suggested_title (string or null): A concise, specific title (30-80 chars) if the original is vague. null if the original title is already good.
+- tags (array of strings): Most relevant tags from the valid set, max 3.
+- suggested_priority (string): One of Low, Medium, High, Urgent based on urgency keywords in the message. Default Medium.`,
+  'review-ticket-tags': `You are a ticket classifier for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
+
+A client has self-assigned tags to a support ticket. Review if the tags are appropriate and suggest changes if needed.
+
+Valid tags: UI/UX, Database, API, DevOps, Frontend, Backend, Content/Copy, SEO, Performance, Bug Fix, Feature Request, Security, Infrastructure, Mobile, Analytics, Automation, Email, Hosting/DNS, Documentation, Billing, Other
+
+Return ONLY valid JSON with these exact fields:
+- approved (boolean): true if all tags are appropriate, false if any are wrong
+- suggested_tags (array of strings): your corrected/recommended tags
+- reason (string or null): brief explanation if changes are suggested, null if approved`,
   'parse-invoice': `You are an invoice creator for Jonathan Simpson & Co., a Hong Kong-based software and automation agency.
 Extract structured invoice details from natural language.
 Return ONLY valid JSON with these fields:

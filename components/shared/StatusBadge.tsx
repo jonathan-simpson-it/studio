@@ -11,6 +11,10 @@ const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   Negotiation: { label: 'Negotiation', variant: 'outline' },
   Won: { label: 'Won', variant: 'success' },
   Lost: { label: 'Lost', variant: 'destructive' },
+  // Tickets
+  Open: { label: 'Open', variant: 'info' },
+  Resolved: { label: 'Resolved', variant: 'success' },
+  Closed: { label: 'Closed', variant: 'secondary' },
   // Projects
   Planning: { label: 'Planning', variant: 'secondary' },
   'In Progress': { label: 'In Progress', variant: 'info' },

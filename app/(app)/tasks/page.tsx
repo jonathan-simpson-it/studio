@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listTasks, createTask } from '@/lib/db/actions/projects';
+import { listTasks, createTask, updateTask } from '@/lib/db/actions/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { KanbanBoard } from '@/components/shared/KanbanBoard';
+import { BoardToolbar } from '@/components/shared/BoardToolbar';
 import {
   Select,
   SelectContent,
@@ -27,16 +31,88 @@ import {
 import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
 import { AIGenerateButton } from '@/components/shared/AIGenerateButton';
 import { SmartFillButton } from '@/components/shared/SmartFillButton';
-import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils';
 import {
-  Search,
   Plus,
-  LayoutGrid,
-  Table2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Task } from '@/types';
+
+const columns = ['Todo', 'In Progress', 'Bottlenecked', 'Done'];
+
+const columnColors: Record<string, string> = {
+  Todo: 'bg-zinc-500',
+  'In Progress': 'bg-blue-500',
+  Bottlenecked: 'bg-amber-500',
+  Done: 'bg-emerald-500',
+};
+
+const priorityStyles: Record<string, string> = {
+  Low: 'border-zinc-400 text-zinc-400',
+  Medium: 'border-amber-500 text-amber-500',
+  High: 'border-orange-500 text-orange-500',
+  Urgent: 'border-red-500 text-red-500',
+};
+
+function TaskCardContent({ task }: { task: Task }) {
+  const router = useRouter();
+
+  return (
+    <Card
+      className="transition-colors hover:bg-accent/50 cursor-pointer"
+      onClick={() => router.push(`/tasks/${task.id}`)}
+    >
+      <CardContent className="p-3 space-y-2">
+        <p className="text-sm font-medium">{task.title}</p>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <Badge variant="outline" className={`text-[10px] ${priorityStyles[task.priority] || ''}`}>
+            {task.priority}
+          </Badge>
+          {task.due_date && <span>Due {formatDate(task.due_date)}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TaskTable({ tasks }: { tasks: Task[] }) {
+  const router = useRouter();
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b text-left text-xs text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Title</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Priority</th>
+              <th className="px-4 py-3 font-medium">Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.map((t) => (
+              <tr
+                key={t.id}
+                className="border-b text-sm transition-colors hover:bg-accent/50 cursor-pointer"
+                onClick={() => router.push(`/tasks/${t.id}`)}
+              >
+                <td className="px-4 py-3 font-medium">{t.title}</td>
+                <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                <td className="px-4 py-3">
+                  <Badge variant="outline" className={`text-[10px] ${priorityStyles[t.priority] || ''}`}>
+                    {t.priority}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function TasksPage() {
   const { data: session } = useSession();
@@ -45,123 +121,110 @@ export default function TasksPage() {
     queryKey: ['tasks'],
     queryFn: listTasks,
   });
-  const [view, setView] = useState<'board' | 'table'>('board');
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'kanban' | 'table' | 'board'>('board');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
 
   const filtered = tasks.filter((t) => {
-    if (filterPriority && t.priority !== filterPriority) return false;
-    if (filterStatus && t.status !== filterStatus) return false;
+    if (filterPriority && filterPriority !== '_all' && t.priority !== filterPriority) return false;
+    if (filterStatus && filterStatus !== '_all' && t.status !== filterStatus) return false;
     return t.title.toLowerCase().includes(search.toLowerCase());
   });
 
-  const columns = ['Todo', 'In Progress', 'Bottlenecked', 'Done'];
-
-  const getStatusColor = (s: string) => {
-    const colors: Record<string, string> = { Todo: 'bg-zinc-500', 'In Progress': 'bg-blue-500', Bottlenecked: 'bg-amber-500', Done: 'bg-emerald-500' };
-    return colors[s] || 'bg-zinc-500';
-  };
+  const handleStatusChange = useCallback(
+    async (taskId: string, newStatus: string) => {
+      queryClient.setQueryData<Task[]>(['tasks'], (prev) =>
+        (prev ?? []).map((t) =>
+          t.id === taskId ? { ...t, status: newStatus as Task['status'] } : t
+        )
+      );
+      try {
+        await updateTask(taskId, { status: newStatus });
+        toast.success(`Task moved to ${newStatus}`);
+      } catch {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        toast.error('Failed to update task status');
+      }
+    },
+    [queryClient]
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 pl-9" />
-          </div>
-          <Select value={filterPriority} onValueChange={setFilterPriority}>
-            <SelectTrigger className="w-32"><SelectValue placeholder="Priority" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">All</SelectItem>
-              {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center rounded-lg border p-0.5">
-            <Button variant={view === 'board' ? 'default' : 'ghost'} size="sm" onClick={() => setView('board')}>
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button variant={view === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setView('table')}>
-              <Table2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
-          <SheetTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> New Task</Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader><SheetTitle>New Task</SheetTitle><SheetDescription className="sr-only">Fill in the details for a new task</SheetDescription></SheetHeader>
-            <TaskForm onSubmit={async (data) => {
-              const userId = session?.user?.id;
-              try {
-                await createTask({ ...data, created_by: userId } as Record<string, unknown>);
-                toast.success('Task created');
-                setShowNewSheet(false);
-                queryClient.invalidateQueries({ queryKey: ['tasks'] });
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : 'Failed to create task');
-              }
-            }} />
-          </SheetContent>
-        </Sheet>
-      </div>
+      <BoardToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search tasks..."
+        view={view === 'board' ? 'kanban' : 'table'}
+        onViewChange={(v) => setView(v === 'kanban' ? 'board' : 'table')}
+        filters={[
+          {
+            key: 'priority',
+            label: 'Priority',
+            placeholder: 'Priority',
+            options: [
+              { label: 'All', value: '_all' },
+              { label: 'Low', value: 'Low' },
+              { label: 'Medium', value: 'Medium' },
+              { label: 'High', value: 'High' },
+              { label: 'Urgent', value: 'Urgent' },
+            ],
+            value: filterPriority,
+            onChange: setFilterPriority,
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            placeholder: 'Status',
+            options: [
+              { label: 'All', value: '_all' },
+              { label: 'Todo', value: 'Todo' },
+              { label: 'In Progress', value: 'In Progress' },
+              { label: 'Bottlenecked', value: 'Bottlenecked' },
+              { label: 'Done', value: 'Done' },
+            ],
+            value: filterStatus,
+            onChange: setFilterStatus,
+          },
+        ]}
+        createButton={
+          <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
+            <SheetTrigger asChild>
+              <Button><Plus className="mr-2 h-4 w-4" /> New Task</Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader><SheetTitle>New Task</SheetTitle><SheetDescription>Fill in the details for a new task</SheetDescription></SheetHeader>
+              <TaskForm onSubmit={async (data) => {
+                const userId = session?.user?.id;
+                try {
+                  await createTask({ ...data, created_by: userId } as Record<string, unknown>);
+                  toast.success('Task created');
+                  setShowNewSheet(false);
+                  queryClient.invalidateQueries({ queryKey: ['tasks'] });
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to create task');
+                }
+              }} />
+            </SheetContent>
+          </Sheet>
+        }
+      />
 
       {view === 'board' ? (
-        <div className="grid grid-cols-4 gap-4">
-          {columns.map((col) => (
-            <div key={col}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${getStatusColor(col)}`} />
-                  <h3 className="text-sm font-medium">{col}</h3>
-                </div>
-                <Badge variant="secondary" className="text-[10px]">{filtered.filter((t) => t.status === col).length}</Badge>
-              </div>
-              <div className="space-y-2">
-                {filtered.filter((t) => t.status === col).map((t) => (
-                  <Card key={t.id} className="cursor-pointer transition-colors hover:bg-accent/50">
-                    <CardContent className="p-3 space-y-2">
-                      <p className="text-sm font-medium">{t.title}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <Badge variant="outline" className="text-[10px]">{t.priority}</Badge>
-                        {t.due_date && <span>Due {formatDate(t.due_date)}</span>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <KanbanBoard
+          columns={columns}
+          items={filtered}
+          getItemId={(t) => t.id}
+          getItemStatus={(t) => t.status}
+          onStatusChange={handleStatusChange}
+          renderCard={(task) => <TaskCardContent task={task} />}
+          columnColors={columnColors}
+          emptyMessage="No tasks"
+        />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Title</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Priority</th>
-                  <th className="px-4 py-3 font-medium">Due Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <tr key={t.id} className="border-b text-sm">
-                    <td className="px-4 py-3 font-medium">{t.title}</td>
-                    <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
-                    <td className="px-4 py-3"><Badge variant="outline" className="text-[10px]">{t.priority}</Badge></td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <TaskTable tasks={filtered} />
       )}
     </div>
   );

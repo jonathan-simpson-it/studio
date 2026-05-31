@@ -95,6 +95,7 @@ export interface ITask extends Document {
   status: string;
   due_date: Date | null;
   est_hours: number | null;
+  source_ticket_id: string | null;
   created_by: string;
   created_at: Date;
   updated_at: Date;
@@ -111,6 +112,7 @@ const taskSchema = new Schema<ITask>({
   status: { type: String, default: 'Todo' },
   due_date: { type: Date, default: null },
   est_hours: { type: Number, default: null },
+  source_ticket_id: { type: String, default: null },
   created_by: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },

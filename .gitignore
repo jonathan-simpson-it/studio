@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+.playwright-mcp/
+playwright-report/
 
 # next.js
 /.next/
@@ -39,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# opencode
+.opencode/

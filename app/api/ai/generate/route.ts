@@ -22,6 +22,9 @@ const AI_ACTIONS: AIActionType[] = [
   'parse-email',
   'parse-proposal',
   'parse-invoice',
+  'tag-ticket',
+  'review-ticket-tags',
+  'restructure-ticket',
 ];
 
 export async function POST(request: NextRequest) {

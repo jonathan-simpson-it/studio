@@ -22,12 +22,14 @@ import {
   Search,
   Calendar,
   Inbox,
+  GitPullRequestArrow,
 } from 'lucide-react';
 import { getInboxStats } from '@/lib/db/actions/email';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/issues', label: 'Issues', icon: GitPullRequestArrow },
   { href: '/clients', label: 'Clients', icon: Briefcase },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
@@ -47,6 +49,7 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
   const { data: stats } = useQuery({
     queryKey: ['inbox-stats'],
     queryFn: getInboxStats,
+    staleTime: 10 * 60 * 1000,
   });
   const unreadCount = stats?.unread ?? 0;
 
@@ -75,7 +78,7 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-2 py-2">
+      <nav className="flex-1 space-y-1.5 px-2 py-2">
         {navItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <span
@@ -95,7 +98,7 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
 
       <Separator />
 
-      <nav className="space-y-1 px-2 py-2">
+      <nav className="space-y-1.5 px-2 py-2">
         {navItemsSecondary.map((item) => (
           <Link key={item.href} href={item.href}>
             <span

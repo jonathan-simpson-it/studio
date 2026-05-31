@@ -4,7 +4,7 @@ import { use, useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getLeadDetail, createActivityLog } from '@/lib/db/actions/details';
+import { getLeadDetail, createActivityLog, convertLeadToClient } from '@/lib/db/actions/details';
 import { updateLead, updateLeadStage, deleteLead } from '@/lib/db/actions/leads';
 import { createClient as createDbClient, getClient } from '@/lib/db/actions/clients';
 import { createProject } from '@/lib/db/actions/projects';
@@ -125,7 +125,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         return;
       }
 
-      await updateLeadStage(lead.id, 'Won');
+      await convertLeadToClient(lead.id, client.id, project.id);
 
       await createActivityLog({
         entity_type: 'lead',
@@ -170,6 +170,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold">{lead.company_name}</h2>
+            <StatusBadge status={lead.stage} />
             <HeatScore score={heatScore} size="lg" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{lead.contact_name}</p>
@@ -179,6 +180,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           {lead.stage === 'Won' && !lead.converted_at && (
             <Button onClick={() => setShowConvert(true)}>
               <ExternalLink className="mr-2 h-4 w-4" /> Convert to Client
+            </Button>
+          )}
+          {lead.converted_at && (
+            <Button variant="outline" asChild>
+              <a href={`/clients/${lead.converted_client_id}`}>
+                <ExternalLink className="mr-2 h-4 w-4" /> View Client
+              </a>
             </Button>
           )}
           <AIGenerateButton
@@ -209,7 +217,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {['New', 'Contacted', 'Discovery', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'].map((s) => (
+                  {['New', 'Contacted', 'Proposal Sent', 'Won', 'Lost'].map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
@@ -234,23 +242,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
-                value={lead.email || ''}
-                onChange={(e) => handleSave('email', e.target.value)}
+                key={lead.id + '-email'}
+                defaultValue={lead.email || ''}
+                onBlur={(e) => handleSave('email', e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
               <Input
-                value={lead.phone || ''}
-                onChange={(e) => handleSave('phone', e.target.value)}
+                key={lead.id + '-phone'}
+                defaultValue={lead.phone || ''}
+                onBlur={(e) => handleSave('phone', e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label>Estimated Value</Label>
               <Input
+                key={lead.id + '-value'}
                 type="number"
-                value={lead.estimated_value || ''}
-                onChange={(e) => handleSave('estimated_value', parseFloat(e.target.value) || 0)}
+                defaultValue={lead.estimated_value || ''}
+                onBlur={(e) => handleSave('estimated_value', parseFloat(e.target.value) || 0)}
               />
             </div>
             <div className="space-y-2">
@@ -282,8 +293,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="space-y-2">
               <Label>Next Action</Label>
               <Input
-                value={lead.next_action || ''}
-                onChange={(e) => handleSave('next_action', e.target.value)}
+                key={lead.id + '-action'}
+                defaultValue={lead.next_action || ''}
+                onBlur={(e) => handleSave('next_action', e.target.value)}
               />
             </div>
           </div>
@@ -293,10 +305,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <div className="space-y-2">
             <Label>Notes</Label>
             <textarea
+              key={lead.id + '-notes'}
               className="w-full rounded-md border bg-transparent p-3 text-sm"
               rows={4}
-              value={lead.notes || ''}
-              onChange={(e) => handleSave('notes', e.target.value)}
+              defaultValue={lead.notes || ''}
+              onBlur={(e) => handleSave('notes', e.target.value)}
             />
           </div>
         </CardContent>

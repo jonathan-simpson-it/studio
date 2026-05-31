@@ -2,7 +2,7 @@
 // ENUMS / UNION TYPES
 // ============================================================
 
-export type LeadStage = 'New' | 'Contacted' | 'Discovery' | 'Proposal Sent' | 'Negotiation' | 'Won' | 'Lost';
+export type LeadStage = 'New' | 'Contacted' | 'Proposal Sent' | 'Won' | 'Lost';
 export type ProjectStatus = 'Planning' | 'In Progress' | 'Waiting on Client' | 'Review' | 'Completed';
 export type TaskStatus = 'Todo' | 'In Progress' | 'Bottlenecked' | 'Done';
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
@@ -10,6 +10,8 @@ export type ProposalStatus = 'Draft' | 'Sent' | 'Viewed' | 'Accepted' | 'Rejecte
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
 export type Currency = 'HKD' | 'GBP' | 'IDR';
 export type BillingType = 'One-off' | 'Retainer' | 'Milestone' | 'Support';
+export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+export type TicketSource = 'support-form' | 'email' | 'contact-form' | 'inbound';
 export type CostCategory = 'Software' | 'API' | 'Contractor' | 'Domain' | 'Hosting' | 'Travel' | 'Other';
 export type Visibility = 'internal' | 'private' | 'client-safe';
 export type UserRole = 'founder' | 'client';
@@ -43,8 +45,12 @@ export type AIActionType =
   | 'parse-task'
   | 'parse-github-issue'
   | 'parse-email'
+  | 'summarize-inbox'
   | 'parse-proposal'
-  | 'parse-invoice';
+  | 'parse-invoice'
+  | 'tag-ticket'
+  | 'review-ticket-tags'
+  | 'restructure-ticket';
 
 export type EventSourceType = 'task' | 'milestone' | 'invoice' | 'proposal' | 'github_issue';
 
@@ -106,6 +112,8 @@ export interface Client {
   currency_preference: Currency;
   source_lead_id: string | null;
   is_internal: boolean;
+  ticket_package: string | null;
+  remaining_tickets: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -172,6 +180,7 @@ export interface Task {
   status: TaskStatus;
   due_date: string | null;
   est_hours: number | null;
+  source_ticket_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -195,6 +204,26 @@ export interface SyncedGithubIssue {
   updated_at_github: string | null;
 }
 
+export interface Ticket {
+  id: string;
+  ticket_number: string;
+  client_id: string | null;
+  project_id: string | null;
+  contact_email: string;
+  contact_name: string;
+  title: string;
+  description: string | null;
+  status: TicketStatus;
+  priority: TaskPriority;
+  source: TicketSource;
+  tags: string[];
+  created_task_id: string | null;
+  created_issue_url: string | null;
+  original_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -204,6 +233,9 @@ export interface Note {
   project_id: string | null;
   task_id: string | null;
   visibility: Visibility;
+  tags: string[];
+  is_pinned: boolean;
+  parent_note_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -213,6 +245,7 @@ export interface Proposal {
   proposal_number: string;
   client_id: string;
   project_id: string | null;
+  lead_id: string | null;
   status: ProposalStatus;
   currency: Currency;
   line_items: LineItem[];
@@ -273,6 +306,10 @@ export interface Cost {
   project_id: string | null;
   is_recurring: boolean;
   recurring_frequency: string | null;
+  is_reimbursable: boolean;
+  payment_source: string | null;
+  related_founder: string | null;
+  notes: string | null;
   created_by: string;
   created_at: string;
 }

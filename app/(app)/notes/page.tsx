@@ -1,21 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listNotes, createNote, deleteNote } from '@/lib/db/actions/notes';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { listNotes, createNote, deleteNote, getAllTags } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import {
   Select,
   SelectContent,
@@ -30,11 +23,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
-import { MarkdownEditor } from '@/components/shared/MarkdownEditor';
 import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
-import { SmartFillButton } from '@/components/shared/SmartFillButton';
 import { formatDate } from '@/lib/utils';
-import { Search, Plus, Lock, Globe, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  Search, Plus, Lock, Globe, MoreHorizontal, Trash2,
+  Pin, PinOff, Loader2, Tag,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { Note } from '@/types';
 
@@ -42,98 +36,194 @@ export default function NotesPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const queryClient = useQueryClient();
-  const { data: notes = [] } = useQuery({
-    queryKey: ['notes'],
-    queryFn: listNotes,
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('newest');
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Note | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['notes', 'list', debouncedSearch, sort, activeTags],
+    queryFn: ({ pageParam }) =>
+      listNotes({ cursor: pageParam, query: debouncedSearch || undefined, sort: sort as 'newest' | 'oldest' | 'title', tags: activeTags.length ? activeTags : undefined }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: undefined as string | undefined,
     enabled: status === 'authenticated',
   });
-  const [search, setSearch] = useState('');
-  const [filterClient, setFilterClient] = useState('');
-  const [showNewSheet, setShowNewSheet] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Note | null>(null);
 
-  async function handleDelete(note: Note) {
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // All tags for suggestions
+  const { data: allTags = [] } = useQuery({
+    queryKey: ['all-tags'],
+    queryFn: getAllTags,
+    staleTime: 60_000,
+    enabled: status === 'authenticated',
+  });
+
+  const pinned = useMemo(() => data?.pages[0]?.pinned ?? [], [data]);
+  const notes = useMemo(() => data?.pages.flatMap((p) => p.notes) ?? [], [data]);
+
+  const handleDelete = useCallback(async (note: Note) => {
     try {
       await deleteNote(note.id);
       toast.success('Note deleted');
       setDeleteTarget(null);
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.setQueryData(['notes', 'list', debouncedSearch, sort, activeTags], (old: typeof data) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => ({
+            ...p,
+            notes: p.notes.filter((n) => n.id !== note.id),
+            pinned: p.pinned.filter((n) => n.id !== note.id),
+          })),
+        };
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete note');
     }
-  }
+  }, [queryClient, debouncedSearch, sort, activeTags]);
 
-  const filtered = notes.filter((n) => {
-    if (search && !n.title.toLowerCase().includes(search.toLowerCase()) && !n.body?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterClient && n.client_id !== filterClient) return false;
-    return true;
-  });
+  const toggleTag = useCallback((tag: string) => {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search notes..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-72 pl-9" />
+            <Input
+              placeholder="Search notes..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9"
+            />
           </div>
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="title">Title A-Z</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <Sheet open={showNewSheet} onOpenChange={setShowNewSheet}>
-          <SheetTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> New Note</Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full sm:max-w-lg">
-            <SheetHeader><SheetTitle>New Note</SheetTitle></SheetHeader>
-            <NoteForm onSubmit={async (data) => {
-              const userId = session?.user?.id;
-              try {
-                await createNote({ ...data, author_id: userId } as Record<string, unknown>);
-                toast.success('Note created');
-                setShowNewSheet(false);
-                queryClient.invalidateQueries({ queryKey: ['notes'] });
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : 'Failed to create note');
-              }
-            }} />
-          </SheetContent>
-        </Sheet>
+        <Button
+          disabled={isCreating}
+          onClick={async () => {
+            if (isCreating || !session?.user?.id) return;
+            setIsCreating(true);
+            try {
+              const note = await createNote({ title: 'Untitled', author_id: session.user.id } as Record<string, unknown>);
+              router.push(`/notes/${note.id}`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Failed to create note');
+              setIsCreating(false);
+            }
+          }}
+        >
+          {isCreating ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
+          New Note
+        </Button>
       </div>
 
+      {/* Tag filter bar */}
+      {allTags.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tag key="tag-filter-icon" className="h-4 w-4 text-muted-foreground" />
+          {allTags.filter(Boolean).map((tag) => (
+            <Badge
+              key={tag}
+              variant={activeTags.includes(tag) ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Pinned notes */}
+      {pinned.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+            <PinOff className="h-3 w-3" /> Pinned
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pinned.map((n) => (
+              <NoteCard key={n.id} note={n} onDelete={setDeleteTarget} />
+            ))}
+          </div>
+          {notes.length > 0 && (
+            <hr className="border-muted-foreground/20" />
+          )}
+        </div>
+      )}
+
+      {/* Notes grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((n) => (
-          <Card
-            key={n.id}
-            className="cursor-pointer transition-colors hover:bg-accent/50"
-            onClick={() => router.push(`/notes/${n.id}`)}
-          >
-            <CardContent className="p-4 space-y-2 relative">
-              <div className="flex items-start justify-between">
-                <p className="text-sm font-medium">{n.title}</p>
-                <div className="flex items-center gap-1">
-                  {n.visibility === 'private' && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  {n.visibility === 'internal' && <Globe className="h-3 w-3 text-muted-foreground" />}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(n)}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-              {n.body && (
-                <MarkdownPreview value={n.body} className="max-h-20 overflow-hidden text-xs text-muted-foreground" />
-              )}
-              <p className="text-[10px] text-muted-foreground">{formatDate(n.created_at)}</p>
-            </CardContent>
-          </Card>
+        {notes.map((n) => (
+          <NoteCard key={n.id} note={n} onDelete={setDeleteTarget} />
         ))}
+      </div>
+
+      {/* Loading / sentinel */}
+      <div ref={sentinelRef} className="flex justify-center py-4">
+        {isFetchingNextPage && (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        )}
+        {!hasNextPage && notes.length > 0 && (
+          <p className="text-xs text-muted-foreground">All notes loaded</p>
+        )}
+        {!isFetching && notes.length === 0 && !debouncedSearch && (
+          <p className="text-sm text-muted-foreground">No notes yet. Create one!</p>
+        )}
+        {!isFetching && notes.length === 0 && debouncedSearch && (
+          <p className="text-sm text-muted-foreground">No notes match your search.</p>
+        )}
       </div>
 
       <ConfirmDeleteDialog
@@ -147,43 +237,51 @@ export default function NotesPage() {
   );
 }
 
-function NoteForm({ onSubmit }: { onSubmit: (data: Partial<Note>) => Promise<void> }) {
-  const [form, setForm] = useState({ title: '', body: '', visibility: 'internal' });
+function NoteCard({ note, onDelete }: { note: Note; onDelete: (n: Note) => void }) {
+  const router = useRouter();
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form as Partial<Note>); }} className="space-y-4 pt-4">
-      <div className="flex items-center justify-between">
-        <Label>Smart Fill</Label>
-        <SmartFillButton
-          action="autofill-note"
-          onFill={(fields) => {
-            if (fields.title) setForm((f) => ({ ...f, title: fields.title as string }));
-            if (fields.body) setForm((f) => ({ ...f, body: fields.body as string }));
-          }}
-          label="Smart Fill"
-          entityLabel="note"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Title</Label>
-        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-      </div>
-      <div className="space-y-2">
-        <Label>Body (markdown)</Label>
-        <MarkdownEditor value={form.body} onChange={(v) => setForm({ ...form, body: v })} minHeight={200} />
-      </div>
-      <div className="space-y-2">
-        <Label>Visibility</Label>
-        <Select value={form.visibility} onValueChange={(v) => setForm({ ...form, visibility: v })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="internal">Internal</SelectItem>
-            <SelectItem value="private">Private</SelectItem>
-            <SelectItem value="client-safe">Client-safe</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Button type="submit" className="w-full">Create Note</Button>
-    </form>
+    <Card
+      className="cursor-pointer transition-colors hover:bg-accent/50"
+      onClick={() => router.push(`/notes/${note.id}`)}
+    >
+      <CardContent className="p-4 space-y-2 relative">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {note.is_pinned && <Pin className="h-3 w-3 text-muted-foreground shrink-0" />}
+            <p className="text-sm font-medium truncate">{note.title}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {note.visibility === 'private' && <Lock className="h-3 w-3 text-muted-foreground" />}
+            {note.visibility === 'internal' && <Globe className="h-3 w-3 text-muted-foreground" />}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem className="text-destructive" onClick={() => onDelete(note)}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+        {note.body && (
+          <MarkdownPreview value={note.body} className="max-h-20 overflow-hidden text-xs text-muted-foreground" />
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {note.tags.filter(Boolean).map((tag) => (
+            <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground">{formatDate(note.created_at)}</p>
+      </CardContent>
+    </Card>
   );
 }
+
+

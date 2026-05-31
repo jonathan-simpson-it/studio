@@ -214,6 +214,23 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </Select>
           </div>
           <div className="space-y-2">
+            <Label>Ticket Package</Label>
+            <Input
+              placeholder="e.g. Basic Support — 10/month"
+              value={client.ticket_package || ''}
+              onChange={(e) => handleSave('ticket_package', e.target.value || null)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Remaining Tickets</Label>
+            <Input
+              type="number"
+              placeholder="Leave empty for unlimited"
+              value={client.remaining_tickets ?? ''}
+              onChange={(e) => handleSave('remaining_tickets', e.target.value ? parseInt(e.target.value) : null)}
+            />
+          </div>
+          <div className="space-y-2">
             <Label>Joined</Label>
             <p className="pt-1.5 text-muted-foreground">{formatDate(client.created_at)}</p>
           </div>
