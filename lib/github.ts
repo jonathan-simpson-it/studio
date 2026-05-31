@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { createAppAuth } from '@octokit/auth-app';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 let cachedInstallationId: number | null = null;
@@ -27,6 +28,7 @@ async function getInstallationId(): Promise<number> {
 
   const { appId, privateKey } = getAppAuth();
   const appOctokit = new Octokit({
+    authStrategy: createAppAuth,
     auth: {
       appId,
       privateKey,
@@ -56,6 +58,7 @@ async function getToken(): Promise<string> {
   const installationId = await getInstallationId();
 
   const { data } = await new Octokit({
+    authStrategy: createAppAuth,
     auth: {
       appId,
       privateKey,
