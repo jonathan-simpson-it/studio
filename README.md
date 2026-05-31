@@ -184,6 +184,8 @@ Open `http://localhost:3000`, click **Register**, enter your invite code and cre
 | POST | `/api/ocr/extract` | Session | OCR text extraction from images/PDFs |
 | POST | `/api/ocr/parse` | Session | Parse extracted text into structured data |
 | GET | `/api/calendars/[id]/feed.ics` | None | Public ICS feed for shared calendars |
+| POST | `/api/portal/send-code` | None | Send 6-digit verification code to client email |
+| POST | `/api/portal/verify-code` | None | Verify code and return portal data (tickets, projects, invoices) |
 | POST | `/api/expenses` | Session | Create daily expense entry |
 | GET | `/api/cron/sync-github` | Bearer (CRON_SECRET) | Auto-sync all active project repos |
 | GET | `/api/cron/check-overdue` | Bearer (CRON_SECRET) | Sets overdue invoices, generates recurring |
@@ -340,7 +342,7 @@ studio/
 │   │   └── loading.tsx                # Auth loading state
 │   ├── (public)/                      # Public routes (no auth)
 │   │   └── portal/page.tsx            # Client ticket lookup
-│   ├── api/                           # Route handlers (28 endpoints)
+│   ├── api/                           # Route handlers (30 endpoints)
 │   │   ├── ai/generate/route.ts       # AI content generation (12 action types)
 │   │   ├── ai/models/route.ts         # List registered models
 │   │   ├── ai/test-model/route.ts     # Ping a model

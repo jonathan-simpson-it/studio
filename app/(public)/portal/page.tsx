@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { getTicketsByEmail, updateTicket } from '@/lib/db/actions/tickets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  ArrowRight,
   Mail,
   Ticket as TicketIcon,
   Briefcase,
@@ -28,6 +27,11 @@ import {
   ExternalLink,
   AlertTriangle,
   Loader2,
+  ShieldCheck,
+  ArrowLeft,
+  Check,
+  RefreshCw,
+  KeyRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Ticket } from '@/types';
@@ -41,27 +45,177 @@ const predefinedTags = [
 ];
 
 export default function PortalPage() {
+  const [step, setStep] = useState<'email' | 'code' | 'data'>('email');
   const [email, setEmail] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ tickets: Ticket[]; client: any; projects: { id: string; name: string; status: string }[] } | null>(null);
   const [error, setError] = useState('');
+  const [data, setData] = useState<{ tickets: Ticket[]; client: any; projects: { id: string; name: string; status: string }[]; invoices: any[] } | null>(null);
   const [showNewTicket, setShowNewTicket] = useState(false);
+  const [codeDigits, setCodeDigits] = useState<string[]>(Array(6).fill(''));
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
-  async function handleLookup(e: React.FormEvent) {
+  const codeInputRefs = useRef<(HTMLInputElement | null)[]>(Array(6).fill(null));
+
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      resendTimerRef.current = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => {
+        if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+      };
+    }
+  }, [resendCooldown]);
+
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
     setLoading(true);
     setError('');
     try {
-      const result = await getTicketsByEmail(email.trim());
-      setData(result as any);
+      const res = await fetch('/api/portal/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Failed to send code');
+        return;
+      }
       setSubmittedEmail(email.trim());
+      setCodeDigits(Array(6).fill(''));
+      setRemainingAttempts(null);
+      setStep('code');
+      setResendCooldown(60);
+      toast.success('Code sent — check your inbox');
     } catch {
-      setError('Failed to look up tickets. Please try again.');
+      setError('Failed to send code. Please try again.');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleVerifyCode() {
+    const code = codeDigits.join('');
+    if (code.length !== 6) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/portal/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: submittedEmail, code }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Invalid code');
+
+        const match = json.error?.match(/(\d+)\s*attempt/);
+        if (match) {
+          setRemainingAttempts(parseInt(match[1], 10));
+        }
+
+        if (json.error?.includes('expired') || json.error?.includes('Too many failed')) {
+          setStep('email');
+        }
+        return;
+      }
+      setData(json);
+      setStep('data');
+      toast.success('Verified successfully');
+    } catch {
+      setError('Failed to verify code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleResend() {
+    if (resendCooldown > 0) return;
+    setLoading(true);
+    setError('');
+    setCodeDigits(Array(6).fill(''));
+    setRemainingAttempts(null);
+    fetch('/api/portal/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: submittedEmail }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        setResendCooldown(60);
+        toast.success('New code sent');
+      })
+      .catch(() => {
+        toast.error('Failed to resend code');
+      })
+      .finally(() => setLoading(false));
+  }
+
+  function handleCodeInput(value: string, index: number) {
+    const digit = value.replace(/\D/g, '').slice(0, 1);
+    const newDigits = [...codeDigits];
+    newDigits[index] = digit;
+    setCodeDigits(newDigits);
+
+    if (digit && index < 5) {
+      codeInputRefs.current[index + 1]?.focus();
+    }
+
+    const code = newDigits.join('');
+    if (code.length === 6) {
+      setCodeDigits(newDigits);
+    }
+  }
+
+  function handleCodeKeyDown(e: React.KeyboardEvent, index: number) {
+    if (e.key === 'Backspace' && !codeDigits[index] && index > 0) {
+      const newDigits = [...codeDigits];
+      newDigits[index - 1] = '';
+      setCodeDigits(newDigits);
+      codeInputRefs.current[index - 1]?.focus();
+    }
+  }
+
+  function handleCodePaste(e: React.ClipboardEvent, index: number) {
+    if (index !== 0) return;
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    e.preventDefault();
+    const newDigits = pasted.split('').concat(Array(6).fill('')).slice(0, 6);
+    setCodeDigits(newDigits);
+    const lastFilled = newDigits.findLastIndex((d) => d !== '');
+    const focusIndex = lastFilled < 5 ? lastFilled + 1 : 5;
+    codeInputRefs.current[focusIndex]?.focus();
+  }
+
+  function handleBackToEmail() {
+    setStep('email');
+    setError('');
+    setCodeDigits(Array(6).fill(''));
+    setRemainingAttempts(null);
+  }
+
+  function handleChangeEmail() {
+    setData(null);
+    setStep('email');
+    setEmail('');
+    setSubmittedEmail('');
+    setError('');
+    setCodeDigits(Array(6).fill(''));
+    setRemainingAttempts(null);
   }
 
   async function handleRaisePriority(ticket: Ticket) {
@@ -101,65 +255,51 @@ export default function PortalPage() {
       </header>
 
       <main className="mx-auto max-w-3xl p-6 space-y-6">
-        {!data ? (
-          <>
-            <div className="text-center space-y-2 pt-12">
-              <div className="mx-auto rounded-full bg-primary/10 p-3 w-fit">
-                <TicketIcon className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-xl font-semibold">View Your Tickets</h1>
-              <p className="text-sm text-muted-foreground">
-                Enter your email to see your support tickets and remaining ticket balance.
-              </p>
-              {process.env.NODE_ENV === 'development' && (
-                <p className="text-xs text-muted-foreground/60 pt-1">
-                  Dev mode: use <code className="text-foreground/70">test@jsco.dev</code> for sample tickets
-                </p>
-              )}
-            </div>
+        {step === 'email' && (
+          <EmailStep
+            email={email}
+            setEmail={setEmail}
+            loading={loading}
+            error={error}
+            onSubmit={handleSendCode}
+          />
+        )}
 
-            <Card>
-              <CardContent className="p-6">
-                <form onSubmit={handleLookup} className="flex gap-3">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-9"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <ArrowRight className="mr-2 h-4 w-4" />
-                    )}
-                    {loading ? 'Looking up...' : 'Look up'}
-                  </Button>
-                </form>
-                {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-              </CardContent>
-            </Card>
-          </>
-        ) : (
+        {step === 'code' && (
+          <CodeStep
+            email={submittedEmail}
+            codeDigits={codeDigits}
+            loading={loading}
+            error={error}
+            remainingAttempts={remainingAttempts}
+            resendCooldown={resendCooldown}
+            onCodeInput={handleCodeInput}
+            onCodeKeyDown={handleCodeKeyDown}
+            onCodePaste={handleCodePaste}
+            onVerify={handleVerifyCode}
+            onResend={handleResend}
+            onBack={handleBackToEmail}
+            onChangeEmail={handleChangeEmail}
+            codeInputRefs={codeInputRefs}
+          />
+        )}
+
+        {step === 'data' && data && (
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">
-                  {data.client?.company_name || 'Your Tickets'}
-                </h2>
-                <p className="text-sm text-muted-foreground">{submittedEmail}</p>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-emerald-500/10 p-1">
+                    <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  </div>
+                  <h2 className="text-xl font-semibold">
+                    {data.client?.company_name || 'Your Tickets'}
+                  </h2>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">{submittedEmail}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setData(null); setEmail(''); }}
-              >
-                Change email
+              <Button variant="outline" size="sm" onClick={handleChangeEmail}>
+                Sign out
               </Button>
             </div>
 
@@ -313,7 +453,7 @@ export default function PortalPage() {
               <TabsContent value="projects" className="pt-4">
                 <Card>
                   <CardContent className="p-0">
-                    {(data as any).projects?.length > 0 ? (
+                    {data.projects?.length > 0 ? (
                       <table className="w-full">
                         <thead>
                           <tr className="border-b text-left text-xs text-muted-foreground">
@@ -322,7 +462,7 @@ export default function PortalPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(data as any).projects.map((p: any) => (
+                          {data.projects.map((p: any) => (
                             <tr key={p.id} className="border-b text-sm">
                               <td className="px-4 py-3 font-medium">{p.name}</td>
                               <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
@@ -342,7 +482,7 @@ export default function PortalPage() {
               <TabsContent value="invoices" className="pt-4">
                 <Card>
                   <CardContent className="p-0">
-                    {(data as any).invoices?.length > 0 ? (
+                    {data.invoices?.length > 0 ? (
                       <table className="w-full">
                         <thead>
                           <tr className="border-b text-left text-xs text-muted-foreground">
@@ -353,7 +493,7 @@ export default function PortalPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(data as any).invoices.map((inv: any) => (
+                          {data.invoices.map((inv: any) => (
                             <tr key={inv.id} className="border-b text-sm">
                               <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{inv.invoice_number}</td>
                               <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
@@ -376,6 +516,216 @@ export default function PortalPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function EmailStep({
+  email,
+  setEmail,
+  loading,
+  error,
+  onSubmit,
+}: {
+  email: string;
+  setEmail: (v: string) => void;
+  loading: boolean;
+  error: string;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <>
+      <div className="text-center space-y-2 pt-12">
+        <div className="mx-auto rounded-full bg-primary/10 p-3 w-fit">
+          <ShieldCheck className="h-6 w-6 text-primary" />
+        </div>
+        <h1 className="text-xl font-semibold">Access Your Client Portal</h1>
+        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+          Enter your email and we&apos;ll send you a one-time code to access your tickets, projects, and invoices.
+        </p>
+        {process.env.NODE_ENV === 'development' && (
+          <p className="text-xs text-muted-foreground/60 pt-1">
+            Dev mode: use <code className="text-foreground/70">test@jsco.dev</code> for sample tickets
+          </p>
+        )}
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="portal-email">Email address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="portal-email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-9"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+            {error && (
+              <p className="text-sm text-destructive flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                {error}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending code...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Send me a code
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function CodeStep({
+  email,
+  codeDigits,
+  loading,
+  error,
+  remainingAttempts,
+  resendCooldown,
+  onCodeInput,
+  onCodeKeyDown,
+  onCodePaste,
+  onVerify,
+  onResend,
+  onBack,
+  onChangeEmail,
+  codeInputRefs,
+}: {
+  email: string;
+  codeDigits: string[];
+  loading: boolean;
+  error: string;
+  remainingAttempts: number | null;
+  resendCooldown: number;
+  onCodeInput: (value: string, index: number) => void;
+  onCodeKeyDown: (e: React.KeyboardEvent, index: number) => void;
+  onCodePaste: (e: React.ClipboardEvent, index: number) => void;
+  onVerify: () => void;
+  onResend: () => void;
+  onBack: () => void;
+  onChangeEmail: () => void;
+  codeInputRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+}) {
+  const codeComplete = codeDigits.every((d) => d !== '');
+
+  return (
+    <>
+      <div className="text-center space-y-2 pt-12">
+        <div className="mx-auto rounded-full bg-primary/10 p-3 w-fit">
+          <KeyRound className="h-6 w-6 text-primary" />
+        </div>
+        <h1 className="text-xl font-semibold">Check your email</h1>
+        <p className="text-sm text-muted-foreground">
+          We sent a 6-digit code to{' '}
+          <span className="text-foreground font-medium">{email}</span>
+        </p>
+        <button
+          type="button"
+          onClick={onChangeEmail}
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+        >
+          Change email
+        </button>
+      </div>
+
+      <Card>
+        <CardContent className="p-6 space-y-6">
+          <div className="space-y-3">
+            <Label className="text-center block">Verification code</Label>
+            <div className="flex items-center justify-center gap-2">
+              {codeDigits.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { codeInputRefs.current[i] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => onCodeInput(e.target.value, i)}
+                  onKeyDown={(e) => onCodeKeyDown(e, i)}
+                  onPaste={(e) => onCodePaste(e, i)}
+                  className="w-10 h-12 text-center text-lg font-mono font-semibold rounded-lg border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
+                  autoFocus={i === 0}
+                  aria-label={`Digit ${i + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive text-center flex items-center justify-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {error}
+            </p>
+          )}
+
+          {remainingAttempts !== null && !error && (
+            <p className="text-xs text-muted-foreground text-center">
+              {remainingAttempts} attempt{remainingAttempts === 1 ? '' : 's'} remaining
+            </p>
+          )}
+
+          <Button
+            className="w-full"
+            onClick={onVerify}
+            disabled={loading || !codeComplete}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Verify &amp; View
+              </>
+            )}
+          </Button>
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={onResend}
+              disabled={resendCooldown > 0 || loading}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              <RefreshCw className="h-3 w-3" />
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

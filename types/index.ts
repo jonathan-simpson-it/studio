@@ -414,6 +414,16 @@ export interface ApiKey {
   created_at: string;
 }
 
+export interface VerificationCode {
+  id: string;
+  email: string;
+  code: string;
+  expires_at: string;
+  used: boolean;
+  attempts: number;
+  created_at: string;
+}
+
 // ============================================================
 // SHARED SUB-TYPES
 // ============================================================

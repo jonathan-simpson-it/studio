@@ -174,29 +174,33 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           <div className="space-y-2">
             <Label>Company Name</Label>
             <Input
-              value={client.company_name || ''}
-              onChange={(e) => handleSave('company_name', e.target.value)}
+              key={client.id + '-company_name'}
+              defaultValue={client.company_name || ''}
+              onBlur={(e) => handleSave('company_name', e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <Label>Contact Name</Label>
             <Input
-              value={client.contact_name || ''}
-              onChange={(e) => handleSave('contact_name', e.target.value)}
+              key={client.id + '-contact_name'}
+              defaultValue={client.contact_name || ''}
+              onBlur={(e) => handleSave('contact_name', e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <Label>Email</Label>
             <Input
-              value={client.email || ''}
-              onChange={(e) => handleSave('email', e.target.value)}
+              key={client.id + '-email'}
+              defaultValue={client.email || ''}
+              onBlur={(e) => handleSave('email', e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <Label>Phone</Label>
             <Input
-              value={client.phone || ''}
-              onChange={(e) => handleSave('phone', e.target.value)}
+              key={client.id + '-phone'}
+              defaultValue={client.phone || ''}
+              onBlur={(e) => handleSave('phone', e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -219,8 +223,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <Label>Ticket Package</Label>
             <Input
               placeholder="e.g. Basic Support — 10/month"
-              value={client.ticket_package || ''}
-              onChange={(e) => handleSave('ticket_package', e.target.value || null)}
+              key={client.id + '-ticket_package'}
+              defaultValue={client.ticket_package || ''}
+              onBlur={(e) => handleSave('ticket_package', e.target.value || null)}
             />
           </div>
           <div className="space-y-2">
@@ -228,8 +233,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <Input
               type="number"
               placeholder="Leave empty for unlimited"
-              value={client.remaining_tickets ?? ''}
-              onChange={(e) => handleSave('remaining_tickets', e.target.value ? parseInt(e.target.value) : null)}
+              key={client.id + '-remaining_tickets'}
+              defaultValue={client.remaining_tickets ?? ''}
+              onBlur={(e) => handleSave('remaining_tickets', e.target.value ? parseInt(e.target.value) : null)}
             />
           </div>
           <div className="space-y-2">

@@ -95,3 +95,25 @@ const apiKeySchema = new Schema<IApiKey>({
 });
 
 export const ApiKey = mongoose.models.ApiKey || mongoose.model<IApiKey>('ApiKey', apiKeySchema);
+
+export interface IVerificationCode extends Document {
+  email: string;
+  code: string;
+  expires_at: Date;
+  used: boolean;
+  attempts: number;
+  created_at: Date;
+}
+
+const verificationCodeSchema = new Schema<IVerificationCode>({
+  email: { type: String, required: true },
+  code: { type: String, required: true },
+  expires_at: { type: Date, required: true },
+  used: { type: Boolean, default: false },
+  attempts: { type: Number, default: 0 },
+  created_at: { type: Date, default: Date.now },
+});
+
+verificationCodeSchema.index({ email: 1, created_at: -1 });
+
+export const VerificationCode = mongoose.models.VerificationCode || mongoose.model<IVerificationCode>('VerificationCode', verificationCodeSchema);
