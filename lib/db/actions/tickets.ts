@@ -115,6 +115,7 @@ export async function createTicket(data: CreateTicketInput) {
 
   let createdTaskId: string | null = null;
   let createdIssueUrl: string | null = null;
+  let githubSyncError: string | null = null;
 
   if (clientId) {
     const taskDesc = [
@@ -147,7 +148,13 @@ export async function createTicket(data: CreateTicketInput) {
     });
   }
 
-  if (projectRepo && (projectRepo as any).full_name) {
+  if (!projectId) {
+    githubSyncError = 'No project set — GitHub issue not created';
+  } else if (!projectRepo) {
+    githubSyncError = `Project has no linked GitHub repo — GitHub issue not created`;
+  } else if (!(projectRepo as any).full_name) {
+    githubSyncError = `Project repo missing full_name — GitHub issue not created`;
+  } else {
     try {
       const ghBody = await generateAIContent('create-github-issue', {
         title: aiTitle,
@@ -182,6 +189,7 @@ export async function createTicket(data: CreateTicketInput) {
         updated_at: new Date(),
       });
     } catch (err) {
+      githubSyncError = err instanceof Error ? err.message : 'Unknown error';
       console.error(`Failed to create GitHub issue for ticket ${ticketNumber}:`, err);
     }
   }
@@ -200,6 +208,7 @@ export async function createTicket(data: CreateTicketInput) {
     ...ticketPlain,
     created_task_id: createdTaskId,
     created_issue_url: createdIssueUrl,
+    github_sync_error: githubSyncError,
   });
 }
 

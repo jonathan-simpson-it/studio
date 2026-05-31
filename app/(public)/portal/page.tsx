@@ -401,7 +401,7 @@ function NewTicketForm({
     setSubmitting(true);
     try {
       const { createTicket } = await import('@/lib/db/actions/tickets');
-      await createTicket({
+      const result = await createTicket({
         contact_email: email,
         contact_name: name.trim(),
         title: title.trim(),
@@ -409,8 +409,11 @@ function NewTicketForm({
         source: 'support-form',
         priority: 'Medium',
         project_id: selectedProject === '_none' ? null : selectedProject,
-      });
+      }) as { created_issue_url: string | null; github_sync_error: string | null };
       toast.success('Ticket submitted');
+      if (result.github_sync_error) {
+        toast.warning(`GitHub sync note: ${result.github_sync_error}`);
+      }
       onSuccess();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to submit ticket');

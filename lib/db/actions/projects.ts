@@ -21,7 +21,7 @@ export async function getProject(id: string) {
   const project = await Project.findById(id).lean({ virtuals: true });
   if (!project) return null;
 
-  const [milestones, tasks, notes, files, repos, syncedIssues, proposals, invoices] = await Promise.all([
+  const [milestones, tasks, notes, files, repos, syncedIssues, proposals, invoices, tickets] = await Promise.all([
     Milestone.find({ project_id: id }).sort({ due_date: 1 }).lean({ virtuals: true }),
     Task.find({ project_id: id }).sort({ created_at: -1 }).lean({ virtuals: true }),
     Note.find({ project_id: id }).sort({ created_at: -1 }).lean({ virtuals: true }),
@@ -30,9 +30,10 @@ export async function getProject(id: string) {
     SyncedGithubIssue.find({ project_id: id }).sort({ updated_at_github: -1 }).lean({ virtuals: true }),
     Proposal.find({ project_id: id }).sort({ created_at: -1 }).lean({ virtuals: true }),
     Invoice.find({ project_id: id }).sort({ created_at: -1 }).lean({ virtuals: true }),
+    Ticket.find({ project_id: id }).sort({ created_at: -1 }).lean({ virtuals: true }),
   ]);
 
-  return toPlain({ ...project, milestones, tasks, notes, files, repos, syncedIssues, proposals, invoices });
+  return toPlain({ ...project, milestones, tasks, notes, files, repos, syncedIssues, proposals, invoices, tickets });
 }
 
 export async function createProject(data: Record<string, unknown>) {
@@ -130,6 +131,24 @@ export async function getActiveProjects() {
 export async function getProjectsForClient(clientId: string) {
   await connect();
   return toPlain(await Project.find({ client_id: clientId }).sort({ created_at: -1 }).lean({ virtuals: true }));
+}
+
+export async function getProjectsWithRepos() {
+  await connect();
+  const repos = await ProjectRepo.find().lean({ virtuals: true });
+  if (!repos.length) return [];
+  const projectIds = [...new Set(repos.map((r: any) => r.project_id))];
+  const projects = await Project.find({ _id: { $in: projectIds } })
+    .select('name')
+    .lean({ virtuals: true });
+  const projectMap = new Map(projects.map((p: any) => [p._id.toString(), p.name]));
+  return toPlain(
+    repos.map((r: any) => ({
+      project_id: r.project_id,
+      project_name: projectMap.get(r.project_id) || 'Unknown',
+      repo_full_name: r.full_name,
+    }))
+  );
 }
 
 export async function getProjectRepos() {

@@ -3,15 +3,28 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listTickets, updateTicket } from '@/lib/db/actions/tickets';
+import { listTickets, updateTicket, createTicket } from '@/lib/db/actions/tickets';
 import { listFounders } from '@/lib/db/actions/settings';
+import { getProjectsWithRepos } from '@/lib/db/actions/projects';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
 import { BoardToolbar } from '@/components/shared/BoardToolbar';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { formatDate } from '@/lib/utils';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Ticket } from '@/types';
 
@@ -30,6 +43,49 @@ const priorityColors: Record<string, string> = {
   High: 'border-orange-500 text-orange-500',
   Urgent: 'border-red-500 text-red-500',
 };
+
+function IssueForm({ projectsWithRepos, onSubmit }: { projectsWithRepos: { project_id: string; project_name: string; repo_full_name: string }[]; onSubmit: (data: { title: string; description: string; priority: string; project_id: string | null }) => Promise<void> }) {
+  const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', project_id: '_none' });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, project_id: form.project_id === '_none' ? null : form.project_id }); }} className="space-y-4 pt-4">
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Description</Label>
+        <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      </div>
+      <div className="space-y-2">
+        <Label>Priority</Label>
+        <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+      {projectsWithRepos.length > 0 && (
+        <div className="space-y-2">
+          <Label>Project</Label>
+          <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
+            <SelectTrigger><SelectValue placeholder="No project" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">No project</SelectItem>
+              {projectsWithRepos.map((p) => (
+                <SelectItem key={p.project_id} value={p.project_id}>
+                  {p.project_name} ({p.repo_full_name})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Selecting a project links this issue to its GitHub repository.</p>
+        </div>
+      )}
+      <Button type="submit" className="w-full">Create Issue</Button>
+    </form>
+  );
+}
 
 function IssueCardContent({ ticket, founders }: { ticket: Ticket; founders: { id: string; name: string; avatar_url: string | null }[] }) {
   const router = useRouter();
@@ -158,6 +214,7 @@ export default function IssuesPage() {
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterSource, setFilterSource] = useState('');
+  const [showNewIssue, setShowNewIssue] = useState(false);
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['issues'],
@@ -167,6 +224,11 @@ export default function IssuesPage() {
   const { data: founders = [] } = useQuery({
     queryKey: ['founders'],
     queryFn: listFounders,
+  });
+
+  const { data: projectsWithRepos = [] } = useQuery({
+    queryKey: ['projects-with-repos'],
+    queryFn: getProjectsWithRepos,
   });
 
   const filtered = tickets.filter((t) => {
@@ -199,6 +261,38 @@ export default function IssuesPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Sheet open={showNewIssue} onOpenChange={setShowNewIssue}>
+          <SheetTrigger asChild>
+            <Button size="sm"><Plus className="mr-2 h-4 w-4" /> New Issue</Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader><SheetTitle>New Issue</SheetTitle><SheetDescription className="sr-only">Create a new issue/ticket</SheetDescription></SheetHeader>
+            <IssueForm projectsWithRepos={projectsWithRepos} onSubmit={async (data) => {
+              try {
+                const result = await createTicket({
+                  contact_email: 'admin@studio.internal',
+                  contact_name: 'Admin',
+                  title: data.title,
+                  description: data.description || undefined,
+                  source: 'inbound',
+                  priority: data.priority,
+                  project_id: data.project_id || null,
+                }) as { github_sync_error?: string | null };
+                toast.success('Issue created');
+                if (result.github_sync_error) {
+                  toast.warning(`GitHub sync note: ${result.github_sync_error}`);
+                }
+                setShowNewIssue(false);
+                queryClient.invalidateQueries({ queryKey: ['issues'] });
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Failed to create issue');
+              }
+            }} />
+          </SheetContent>
+        </Sheet>
+      </div>
+
       <BoardToolbar
         search={search}
         onSearchChange={setSearch}

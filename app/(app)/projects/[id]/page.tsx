@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProject, getProjectBudgetProgress, createTask, createMilestone, updateProject, deleteProject, updateMilestone, deleteMilestone, updateTask, deleteTask, linkRepoToProject, unlinkRepoFromProject } from '@/lib/db/actions/projects';
+import { createTicket, createTicketFromGithubIssue } from '@/lib/db/actions/tickets';
 import { createNote } from '@/lib/db/actions/notes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,13 +62,14 @@ import {
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRecord, Proposal, Invoice, ActivityLog, ProjectRepo } from '@/types';
+import type { Project, Client, Task, Milestone, SyncedGithubIssue, Note, FileRecord, Proposal, Invoice, ActivityLog, ProjectRepo, Ticket } from '@/types';
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { id } = use(params);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showNewTicket, setShowNewTicket] = useState(false);
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [showNewMilestone, setShowNewMilestone] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -94,6 +96,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   });
 
   const tasks = (project?.tasks ?? []) as Task[];
+  const tickets = (project?.tickets ?? []) as Ticket[];
   const issues = (project?.syncedIssues ?? []) as SyncedGithubIssue[];
   const milestones = (project?.milestones ?? []) as Milestone[];
   const notes = (project?.notes ?? []) as Note[];
@@ -614,6 +617,35 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </SheetContent>
             </Sheet>
 
+            <Sheet open={showNewTicket} onOpenChange={setShowNewTicket}>
+              <SheetTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Plus className="mr-2 h-4 w-4" /> New Ticket
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader><SheetTitle>New Ticket</SheetTitle><SheetDescription className="sr-only">Create a new issue/ticket for this project</SheetDescription></SheetHeader>
+                <TicketForm projectId={project.id} onSubmit={async (data) => {
+                  try {
+                    await createTicket({
+                      contact_email: 'admin@studio.internal',
+                      contact_name: 'Admin',
+                      title: data.title,
+                      description: data.description,
+                      source: 'inbound',
+                      priority: data.priority,
+                      project_id: project.id,
+                    });
+                    toast.success('Ticket created');
+                    setShowNewTicket(false);
+                    queryClient.invalidateQueries({ queryKey: ['project', id] });
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to create ticket');
+                  }
+                }} />
+              </SheetContent>
+            </Sheet>
+
             <Sheet open={showNewIssue} onOpenChange={setShowNewIssue}>
               <SheetTrigger asChild>
                 <Button size="sm" variant="outline">
@@ -629,8 +661,25 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ repo: data.repo, title: data.title, body: data.body }),
                     });
-                    if (!res.ok) throw new Error('Failed to create issue');
+                    if (!res.ok) throw new Error('Failed to create GitHub issue');
+                    const json = await res.json();
+                    const ghIssue = json.issue;
                     toast.success('GitHub issue created');
+                    if (project?.client_id && ghIssue?.number && ghIssue?.html_url) {
+                      try {
+                        await createTicketFromGithubIssue({
+                          github_issue_id: ghIssue.number,
+                          project_id: id,
+                          client_id: project.client_id,
+                          title: ghIssue.title || data.title,
+                          description: data.body || '',
+                          github_url: ghIssue.html_url,
+                          author_login: 'studio',
+                        });
+                      } catch {
+                        // ticket creation is best-effort
+                      }
+                    }
                     setShowNewIssue(false);
                     queryClient.invalidateQueries({ queryKey: ['project', id] });
                   } catch (err) {
@@ -772,6 +821,58 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </table>
               </CardContent>
             </Card>
+          )}
+
+          {tickets.length > 0 && (
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Project Tickets / Issues ({tickets.length})</h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => router.push('/issues')}
+                >
+                  View All Issues →
+                </Button>
+              </div>
+              <Card>
+                <CardContent className="p-0">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-xs text-muted-foreground">
+                        <th className="px-4 py-3 font-medium">Ticket</th>
+                        <th className="px-4 py-3 font-medium">Title</th>
+                        <th className="px-4 py-3 font-medium">Status</th>
+                        <th className="px-4 py-3 font-medium">Priority</th>
+                        <th className="px-4 py-3 font-medium">Source</th>
+                        <th className="px-4 py-3 w-20"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tickets.map((t) => (
+                        <tr key={t.id} className="border-b text-sm hover:bg-accent/30 cursor-pointer" onClick={() => router.push(`/issues/${t.id}`)}>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.ticket_number}</td>
+                          <td className="px-4 py-3 font-medium">{t.title}</td>
+                          <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-[10px]">{t.priority}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{t.source}</td>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            {t.created_issue_url && (
+                              <a href={t.created_issue_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                GitHub <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
 
@@ -1207,6 +1308,32 @@ function EditMilestoneForm({ milestone, onSubmit, onCancel }: { milestone: Miles
         <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Save Changes</Button>
       </DialogFooter>
+    </form>
+  );
+}
+
+function TicketForm({ projectId, onSubmit }: { projectId: string; onSubmit: (data: { title: string; description: string; priority: string }) => Promise<void> }) {
+  const [form, setForm] = useState({ title: '', description: '', priority: 'Medium' });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4 pt-4">
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+        <Label>Description</Label>
+        <textarea className="w-full rounded-md border bg-transparent p-3 text-sm" rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      </div>
+      <div className="space-y-2">
+        <Label>Priority</Label>
+        <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['Low', 'Medium', 'High', 'Urgent'].map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Button type="submit" className="w-full">Create Ticket</Button>
     </form>
   );
 }
