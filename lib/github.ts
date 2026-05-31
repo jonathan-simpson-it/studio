@@ -5,7 +5,15 @@ let cachedInstallationId: number | null = null;
 
 function getAppAuth() {
   const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+
+  if (privateKey) {
+    privateKey = privateKey
+      .replace(/\\n/g, '\n')
+      .replace(/^"(.*)"$/s, '$1')
+      .replace(/^'(.*)'$/s, '$1')
+      .trim();
+  }
 
   if (!appId || !privateKey) {
     throw new Error('GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be set');
@@ -57,8 +65,11 @@ async function getToken(): Promise<string> {
   });
 
   if (!data?.token) {
+    cachedToken = null;
+    const { appId: id, privateKey: key } = getAppAuth();
     throw new Error(
-      'GitHub App authentication failed — no token in response. Check APP_ID and private key.'
+      `GitHub App auth failed — no token in response. ` +
+      `appId=${id} keyLength=${key.length} keyStart=${key.substring(0, 40)}`
     );
   }
 
