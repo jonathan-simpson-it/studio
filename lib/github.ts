@@ -4,7 +4,7 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 let cachedInstallationId: number | null = null;
 
 function getAppAuth() {
-  const appId = process.env.GITHUB_APP_ID;
+  const appId = Number(process.env.GITHUB_APP_ID);
   let privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
   if (privateKey) {
