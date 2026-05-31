@@ -70,6 +70,9 @@ export default function AppLayout({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement)?.isContentEditable) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setCmdOpen(true);

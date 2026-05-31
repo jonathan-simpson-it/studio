@@ -11,9 +11,18 @@ type Hotkey = {
   enabled?: boolean;
 };
 
+function isActiveElementEditable(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = (el as HTMLElement).tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable;
+}
+
 export function useHotkeys(hotkeys: Hotkey[]) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (isActiveElementEditable()) return;
       for (const hotkey of hotkeys) {
         if (hotkey.enabled === false) continue;
         const metaKey = e.metaKey || e.ctrlKey;
