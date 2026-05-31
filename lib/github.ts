@@ -10,8 +10,8 @@ function getAppAuth() {
   if (privateKey) {
     privateKey = privateKey
       .replace(/\\n/g, '\n')
-      .replace(/^"(.*)"$/s, '$1')
-      .replace(/^'(.*)'$/s, '$1')
+      .replace(/^"([\s\S]*)"$/, '$1')
+      .replace(/^'([\s\S]*)'$/, '$1')
       .trim();
   }
 
