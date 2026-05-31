@@ -5,7 +5,7 @@ let cachedInstallationId: number | null = null;
 
 function getAppAuth() {
   const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
   if (!appId || !privateKey) {
     throw new Error('GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be set');
@@ -56,6 +56,12 @@ async function getToken(): Promise<string> {
     installation_id: installationId,
   });
 
+  if (!data?.token) {
+    throw new Error(
+      'GitHub App authentication failed — no token in response. Check APP_ID and private key.'
+    );
+  }
+
   cachedToken = {
     token: data.token,
     expiresAt: new Date(data.expires_at).getTime(),
@@ -66,6 +72,9 @@ async function getToken(): Promise<string> {
 
 async function getClient(): Promise<Octokit> {
   const token = await getToken();
+  if (!token || typeof token !== 'string') {
+    throw new Error('Failed to obtain GitHub installation access token');
+  }
   return new Octokit({ auth: token });
 }
 

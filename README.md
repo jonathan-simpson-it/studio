@@ -411,7 +411,7 @@ studio/
 │   ├── tasks.spec.ts, tickets.spec.ts, ui-ux.spec.ts
 │   ├── helpers.ts                     # Test helpers
 │   └── global-setup.ts                # Global test setup
-├── mcp-server/                        # MCP server for Perplexity/Claude integration
+├── studio-cli/                        # CLI tool for Perplexity/terminal Studio commands
 ├── scripts/                           # seed-finance.ts, seed-test-tickets.ts
 ├── public/                            # JSC-logo.png/svg, favicons, site.webmanifest, app icons
 ├── auth.ts                            # Auth.js v5 configuration

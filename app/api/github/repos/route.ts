@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
+    console.error('Failed to list org repos:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch repos' },
       { status: 500 }
