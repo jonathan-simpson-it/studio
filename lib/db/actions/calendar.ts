@@ -209,8 +209,8 @@ export async function processPendingReminders() {
     .select('title start_time created_by').lean({ virtuals: true });
   const eventMap = new Map(events.map((e: any) => [e._id.toString(), e]));
 
-  const resend = new (await import('resend')).Resend(process.env.RESEND_API_KEY);
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  const { getClient, getSenderIdentity } = await import('@/lib/resend');
+  const identity = await getSenderIdentity();
   let sent = 0;
 
   for (const reminder of reminders) {
@@ -222,8 +222,8 @@ export async function processPendingReminders() {
       const userData = await User.findById(event.created_by).select('email').lean({ virtuals: true });
       if ((userData as any)?.email) {
         try {
-          await resend.emails.send({
-            from: `Studio <${from}>`,
+          await getClient().emails.send({
+            from: `${identity.displayName} <${identity.email}>`,
             to: (userData as any).email,
             subject: `Reminder: ${event.title}`,
             text: `Your event "${event.title}" is coming up at ${new Date(event.start_time).toLocaleString()}.`,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInboxMessages, markMessageRead, archiveMessage, syncInboxNow, getThreadMessages, repairInbox } from '@/lib/db/actions/google';
+import { setInboxSource } from '@/lib/db/actions/inbound';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -130,6 +131,13 @@ export default function InboxPage() {
     queryKey: ['inbox'],
     queryFn: () => getInboxMessages({ limit: 50 }),
   });
+
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: () => fetch('/api/auth/session').then(r => r.json()).then(d => d?.user || null),
+  });
+
+  const inboxSource: 'gmail' | 'custom_domain' = (user as any)?.inbox_source || 'gmail';
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -342,7 +350,39 @@ export default function InboxPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold">Inbox</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Inbox</h2>
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+              <button
+                className={`px-2 py-1 text-[10px] rounded-sm font-medium transition-colors ${
+                  inboxSource === 'gmail'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={async () => {
+                  await setInboxSource('gmail');
+                  queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                  queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
+                }}
+              >
+                Gmail
+              </button>
+              <button
+                className={`px-2 py-1 text-[10px] rounded-sm font-medium transition-colors ${
+                  inboxSource === 'custom_domain'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={async () => {
+                  await setInboxSource('custom_domain');
+                  queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                  queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
+                }}
+              >
+                Custom
+              </button>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
             {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
           </p>
@@ -438,7 +478,9 @@ export default function InboxPage() {
               ? 'No messages match your search.'
               : activeTab !== 'all'
               ? `No ${FILTER_TABS.find((t) => t.key === activeTab)?.label.toLowerCase()} messages.`
-              : 'No messages yet. Connect Google in Settings \u2192 Connections and enable inbox sync.'}
+              : inboxSource === 'gmail'
+                ? 'No messages yet. Connect Google in Settings \u2192 Connections and enable inbox sync.'
+                : 'No messages yet. Send an email to your custom domain to see it here.'}
           </CardContent>
         </Card>
       ) : (

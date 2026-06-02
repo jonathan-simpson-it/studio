@@ -1,4 +1,6 @@
 import { Resend } from 'resend';
+import { connect } from '@/lib/db/connect';
+import { AgencySettings } from '@/lib/db/models/core';
 
 let resend: Resend | null = null;
 
@@ -9,18 +11,42 @@ function getClient(): Resend {
   return resend;
 }
 
+export async function getSenderIdentity(profileId?: string) {
+  await connect();
+  const settings = await AgencySettings.findOne().lean({ virtuals: true });
+  const domain = (settings as any)?.custom_domain_name || 'mail.jonathansimpson.co';
+
+  let profile = (settings as any)?.sender_profiles?.find((p: any) => p.is_default);
+  if (profileId) {
+    profile = (settings as any)?.sender_profiles?.find((p: any) => p.id === profileId) || profile;
+  }
+
+  if ((settings as any)?.custom_domain_verified && profile) {
+    return {
+      displayName: profile.display_name,
+      email: `${profile.email_prefix}@${domain}`,
+    };
+  }
+
+  return {
+    displayName: 'Jonathan Simpson & Co.',
+    email: process.env.EMAIL_FROM || 'studio@jonathansimpson.co',
+  };
+}
+
 export async function sendInvoiceEmail(
   to: string,
   invoiceNumber: string,
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  profileId?: string
 ) {
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  const identity = await getSenderIdentity(profileId);
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathan Simpson & Co. <${from}>`,
+    from: `${identity.displayName} <${identity.email}>`,
     to,
-    subject: `Invoice ${invoiceNumber} from Jonathan Simpson & Co.`,
-    text: `Dear Client,\n\nPlease find attached invoice ${invoiceNumber} from Jonathan Simpson & Co.\n\nThank you for your business.\n\n— Jonathan Simpson & Co.`,
+    subject: `Invoice ${invoiceNumber} from ${identity.displayName}`,
+    text: `Dear Client,\n\nPlease find attached invoice ${invoiceNumber}.\n\nThank you for your business.\n\n— ${identity.displayName}`,
     attachments: [
       {
         filename: `${invoiceNumber}.pdf`,
@@ -36,15 +62,16 @@ export async function sendInvoiceEmail(
 export async function sendProposalEmail(
   to: string,
   proposalNumber: string,
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  profileId?: string
 ) {
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  const identity = await getSenderIdentity(profileId);
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathan Simpson & Co. <${from}>`,
+    from: `${identity.displayName} <${identity.email}>`,
     to,
-    subject: `Proposal ${proposalNumber} from Jonathan Simpson & Co.`,
-    text: `Dear Client,\n\nPlease find attached proposal ${proposalNumber} from Jonathan Simpson & Co.\n\nWe look forward to working with you.\n\n— Jonathan Simpson & Co.`,
+    subject: `Proposal ${proposalNumber} from ${identity.displayName}`,
+    text: `Dear Client,\n\nPlease find attached proposal ${proposalNumber}.\n\nWe look forward to working with you.\n\n— ${identity.displayName}`,
     attachments: [
       {
         filename: `${proposalNumber}.pdf`,
@@ -61,12 +88,13 @@ export async function sendGeneralEmail(
   to: string,
   subject: string,
   body: string,
-  attachments?: Array<{ filename: string; content: string }>
+  attachments?: Array<{ filename: string; content: string }>,
+  profileId?: string
 ) {
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  const identity = await getSenderIdentity(profileId);
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathan Simpson & Co. <${from}>`,
+    from: `${identity.displayName} <${identity.email}>`,
     to,
     subject,
     text: body,
@@ -80,11 +108,37 @@ export async function sendGeneralEmail(
   return data;
 }
 
-export async function sendVerificationCode(to: string, code: string) {
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+export async function sendGeneralHtmlEmail(
+  to: string,
+  subject: string,
+  bodyHtml: string,
+  bodyText?: string,
+  attachments?: Array<{ filename: string; content: string }>,
+  profileId?: string
+) {
+  const identity = await getSenderIdentity(profileId);
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathan Simpson & Co. <${from}>`,
+    from: `${identity.displayName} <${identity.email}>`,
+    to,
+    subject,
+    html: bodyHtml,
+    text: bodyText || bodyHtml.replace(/<[^>]*>/g, ''),
+    attachments: attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+    })),
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function sendVerificationCode(to: string, code: string) {
+  const identity = await getSenderIdentity();
+
+  const { data, error } = await getClient().emails.send({
+    from: `${identity.displayName} <${identity.email}>`,
     to,
     subject: 'Your verification code for the Client Portal',
     html: `
@@ -123,7 +177,7 @@ export async function sendVerificationCode(to: string, code: string) {
                   <tr>
                     <td align="center" style="padding-top:24px;">
                       <p style="margin:0;font-size:11px;color:#52525b;">
-                        Jonathan Simpson &amp; Co. &middot; Hong Kong
+                        ${identity.displayName.replace(/&/g, '&amp;')} &middot; Hong Kong
                       </p>
                     </td>
                   </tr>
@@ -141,10 +195,10 @@ export async function sendVerificationCode(to: string, code: string) {
 }
 
 export async function sendTestEmail(to: string) {
-  const from = process.env.EMAIL_FROM || 'studio@jonathansimpson.co';
+  const identity = await getSenderIdentity();
 
   const { data, error } = await getClient().emails.send({
-    from: `Jonathan Simpson & Co. <${from}>`,
+    from: `${identity.displayName} <${identity.email}>`,
     to,
     subject: 'Studio — Resend connection test',
     text: 'This is a test email from Studio. Your Resend integration is working correctly.',
@@ -153,3 +207,5 @@ export async function sendTestEmail(to: string) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+export { getClient };

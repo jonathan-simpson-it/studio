@@ -24,6 +24,7 @@ import {
   Inbox,
   GitPullRequestArrow,
   Keyboard,
+  PenSquare,
 } from 'lucide-react';
 import { getInboxStats } from '@/lib/db/actions/email';
 
@@ -98,6 +99,22 @@ export function Sidebar({ onCmdK }: { onCmdK?: () => void }) {
             </Link>
           );
         })}
+      </nav>
+
+      <nav className="px-2 py-2">
+        <Link href="/compose">
+          <span
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent min-h-[44px]',
+              pathname.startsWith('/compose')
+                ? 'bg-accent text-accent-foreground border-l-2 border-primary pl-[10px]'
+                : 'text-muted-foreground pl-3'
+            )}
+          >
+            <PenSquare className="h-4 w-4" />
+            <span className="flex-1">Compose</span>
+          </span>
+        </Link>
       </nav>
 
       <Separator />

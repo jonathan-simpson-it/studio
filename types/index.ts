@@ -24,6 +24,39 @@ export type MessageImportance = 'high' | 'medium' | 'low';
 export type EmailOutboxStatus = 'sent' | 'failed' | 'draft';
 export type EmailEntityType = 'invoice' | 'proposal' | 'general' | 'follow-up';
 export type AvatarProvider = 'github' | 'google';
+export type InboxSource = 'gmail' | 'custom_domain';
+
+export interface SenderProfile {
+  id: string;
+  display_name: string;
+  email_prefix: string;
+  is_default: boolean;
+}
+
+export interface DomainSettings {
+  id: string | null;
+  name: string | null;
+  verified: boolean;
+  verification_status: 'pending' | 'verified' | 'failed' | null;
+  open_tracking: boolean;
+  click_tracking: boolean;
+  sender_profiles: SenderProfile[];
+}
+
+export interface InboundMessageItem {
+  id: string;
+  user_id: string;
+  to_email: string;
+  from_email: string;
+  from_name: string;
+  subject: string;
+  body_plain: string;
+  body_html: string | null;
+  is_read: boolean;
+  is_archived: boolean;
+  received_at: string;
+  created_at: string;
+}
 
 export type AIModelKey = 'default' | 'longform' | 'structured' | 'multilingual' | 'fast';
 
@@ -71,6 +104,7 @@ export interface User {
   role: UserRole;
   timezone: string;
   default_hourly_rate: number;
+  inbox_source: InboxSource;
   created_at: string;
 }
 
@@ -366,6 +400,13 @@ export interface AgencySettings {
   invoice_default_terms: string;
   proposal_default_terms: string;
   proposal_default_scope_template: string;
+  custom_domain_id: string | null;
+  custom_domain_name: string | null;
+  custom_domain_verified: boolean;
+  custom_domain_verification_status: 'pending' | 'verified' | 'failed' | null;
+  email_open_tracking: boolean;
+  email_click_tracking: boolean;
+  sender_profiles: SenderProfile[];
   created_at: string;
   updated_at: string;
 }

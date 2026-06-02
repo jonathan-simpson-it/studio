@@ -365,6 +365,17 @@ export async function getInboxMessages(options?: {
 
   await connect();
 
+  const user = await User.findById(session.user.id).lean({ virtuals: true });
+
+  if ((user as any)?.inbox_source === 'custom_domain') {
+    const { getInboundMessages } = await import('@/lib/db/actions/inbound');
+    return getInboundMessages({
+      limit: options?.limit,
+      includeArchived: options?.includeArchived,
+      isRead: options?.isRead,
+    });
+  }
+
   const filter: Record<string, unknown> = { user_id: session.user.id };
   if (!options?.includeArchived) filter.is_archived = false;
   if (options?.importance) filter.importance = options.importance;
@@ -401,6 +412,13 @@ export async function markMessageRead(id: string) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
+
+  const user = await User.findById(session.user.id).lean({ virtuals: true });
+  if ((user as any)?.inbox_source === 'custom_domain') {
+    const { markInboundRead } = await import('@/lib/db/actions/inbound');
+    return markInboundRead(id);
+  }
+
   return toPlain(await InboxMessage.findByIdAndUpdate(id, { is_read: true }).lean({ virtuals: true }));
 }
 
@@ -409,6 +427,13 @@ export async function archiveMessage(id: string) {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
+
+  const user = await User.findById(session.user.id).lean({ virtuals: true });
+  if ((user as any)?.inbox_source === 'custom_domain') {
+    const { archiveInbound } = await import('@/lib/db/actions/inbound');
+    return archiveInbound(id);
+  }
+
   return toPlain(await InboxMessage.findByIdAndUpdate(id, { is_archived: true }).lean({ virtuals: true }));
 }
 

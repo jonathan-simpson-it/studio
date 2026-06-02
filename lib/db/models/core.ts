@@ -14,6 +14,7 @@ export interface IUser extends Document {
   role: 'founder' | 'client';
   timezone: string;
   default_hourly_rate: number;
+  inbox_source: 'gmail' | 'custom_domain';
   created_at: Date;
 }
 
@@ -31,10 +32,18 @@ const userSchema = new Schema<IUser>({
   role: { type: String, enum: ['founder', 'client'], default: 'founder' },
   timezone: { type: String, default: 'Asia/Hong_Kong' },
   default_hourly_rate: { type: Number, default: 0 },
+  inbox_source: { type: String, enum: ['gmail', 'custom_domain'], default: 'gmail' },
   created_at: { type: Date, default: Date.now },
 });
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+
+export interface ISenderProfile {
+  id: string;
+  display_name: string;
+  email_prefix: string;
+  is_default: boolean;
+}
 
 export interface IAgencySettings extends Document {
   agency_name: string;
@@ -44,6 +53,13 @@ export interface IAgencySettings extends Document {
   invoice_default_terms: string;
   proposal_default_terms: string;
   proposal_default_scope_template: string;
+  custom_domain_id: string | null;
+  custom_domain_name: string | null;
+  custom_domain_verified: boolean;
+  custom_domain_verification_status: 'not_started' | 'pending' | 'verified' | 'failed' | null;
+  email_open_tracking: boolean;
+  email_click_tracking: boolean;
+  sender_profiles: ISenderProfile[];
 }
 
 const agencySettingsSchema = new Schema<IAgencySettings>({
@@ -54,6 +70,19 @@ const agencySettingsSchema = new Schema<IAgencySettings>({
   invoice_default_terms: { type: String, default: '' },
   proposal_default_terms: { type: String, default: '' },
   proposal_default_scope_template: { type: String, default: '' },
+  custom_domain_id: { type: String, default: null },
+  custom_domain_name: { type: String, default: null },
+  custom_domain_verified: { type: Boolean, default: false },
+  custom_domain_verification_status: { type: String, enum: ['not_started', 'pending', 'verified', 'failed'], default: null },
+  email_open_tracking: { type: Boolean, default: true },
+  email_click_tracking: { type: Boolean, default: true },
+  sender_profiles: [{
+    _id: false,
+    id: { type: String, required: true },
+    display_name: { type: String, required: true },
+    email_prefix: { type: String, required: true },
+    is_default: { type: Boolean, default: false },
+  }],
 });
 
 export const AgencySettings = mongoose.models.AgencySettings || mongoose.model<IAgencySettings>('AgencySettings', agencySettingsSchema);

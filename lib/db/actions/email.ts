@@ -6,7 +6,7 @@ import { EmailOutbox } from '@/lib/db/models/docs';
 import { ActivityLog, Client } from '@/lib/db/models/crm';
 import { auth } from '@/auth';
 import { toPlain } from '@/lib/db/to-plain';
-import { sendInvoiceEmail, sendProposalEmail, sendGeneralEmail } from '@/lib/resend';
+import { sendInvoiceEmail, sendProposalEmail, sendGeneralEmail, sendGeneralHtmlEmail, getSenderIdentity } from '@/lib/resend';
 import { getInvoice, getProposal } from './invoices';
 import { generateInvoicePDF, generateProposalPDF } from '@/lib/pdf';
 
@@ -16,6 +16,17 @@ export async function getInboxStats() {
 
   await connect();
   const userId = session.user.id;
+
+  const user = await import('@/lib/db/models/core').then(m => m.User.findById(userId).lean({ virtuals: true }));
+  const isCustomDomain = (user as any)?.inbox_source === 'custom_domain';
+
+  if (isCustomDomain) {
+    const { InboundMessage } = await import('@/lib/db/models/inbound');
+    const [unread] = await Promise.all([
+      InboundMessage.countDocuments({ user_id: userId, is_read: false, is_archived: false }),
+    ]);
+    return { unread, highPriority: 0, actionNeeded: 0 };
+  }
 
   const [unread, highPriority, actionNeeded] = await Promise.all([
     InboxMessage.countDocuments({ user_id: userId, is_read: false, is_archived: false }),
@@ -157,6 +168,7 @@ export async function sendComposedEmail(
   let resendId: string | null = null;
   let status: 'sent' | 'failed' = 'sent';
   let errorMessage: string | null = null;
+  const identity = await getSenderIdentity();
 
   try {
     const result = await sendGeneralEmail(to, subject, body, attachments);
@@ -168,11 +180,65 @@ export async function sendComposedEmail(
 
   await EmailOutbox.create({
     user_id: session.user.id,
-    from_email: process.env.EMAIL_FROM || 'studio@jonathansimpson.co',
+    from_email: identity.email,
     to_email: to,
     to_name: toName || '',
     subject,
     body_text: body,
+    status,
+    resend_id: resendId,
+    entity_type: 'general',
+    sent_at: status === 'sent' ? new Date() : null,
+    error_message: errorMessage,
+  });
+
+  return { status, errorMessage };
+}
+
+export async function composeAndSendEmail(data: {
+  profileId?: string;
+  to: string;
+  cc?: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string;
+  attachments?: Array<{ filename: string; content: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  await connect();
+
+  const identity = await getSenderIdentity(data.profileId);
+  const plainText = data.bodyText || data.bodyHtml.replace(/<[^>]*>/g, '');
+
+  let resendId: string | null = null;
+  let status: 'sent' | 'failed' = 'sent';
+  let errorMessage: string | null = null;
+
+  try {
+    const result = await sendGeneralHtmlEmail(
+      data.to,
+      data.subject,
+      data.bodyHtml,
+      plainText,
+      data.attachments,
+      data.profileId
+    );
+    resendId = result?.id || null;
+  } catch (err) {
+    status = 'failed';
+    errorMessage = err instanceof Error ? err.message : 'Unknown error';
+  }
+
+  await EmailOutbox.create({
+    user_id: session.user.id,
+    from_email: identity.email,
+    to_email: data.to,
+    to_name: '',
+    subject: data.subject,
+    body_text: plainText,
+    body_html: data.bodyHtml,
     status,
     resend_id: resendId,
     entity_type: 'general',

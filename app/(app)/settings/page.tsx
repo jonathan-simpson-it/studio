@@ -5,6 +5,7 @@ import { useSession, signIn } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentUser, updateUserProfile, getAgencySettings, updateAgencySettings, getIntegrations, upsertIntegration } from '@/lib/db/actions/settings';
 import { getGoogleCalendars, toggleGoogleCalendar, fetchAndStoreGoogleCalendars, getGoogleInboxes, toggleGoogleInbox, fetchAndStoreGoogleLabels } from '@/lib/db/actions/google';
+import { setInboxSource } from '@/lib/db/actions/inbound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +44,8 @@ import {
   Plus,
   Link,
   Unlink,
+  Mail,
+  RefreshCw,
 } from 'lucide-react';
 
 const TIMEZONES = [
@@ -80,6 +83,14 @@ export default function SettingsPage() {
   const [fetchingCalendars, setFetchingCalendars] = useState(false);
   const [fetchingInboxes, setFetchingInboxes] = useState(false);
   const [modelLatencies, setModelLatencies] = useState<Record<string, number | null>>({});
+  const [domainInfo, setDomainInfo] = useState<any>(null);
+  const [domainLoading, setDomainLoading] = useState(false);
+  const [domainTracking, setDomainTracking] = useState({ openTracking: true, clickTracking: true });
+  const [editingProfile, setEditingProfile] = useState<{ id: string; display_name: string; email_prefix: string } | null>(null);
+  const [showAddProfile, setShowAddProfile] = useState(false);
+  const [newProfile, setNewProfile] = useState({ display_name: '', email_prefix: '' });
+  const [showCreateDomain, setShowCreateDomain] = useState(false);
+  const [newDomainName, setNewDomainName] = useState('');
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -193,6 +204,112 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['integrations'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save');
+    }
+  }
+
+  async function loadDomainInfo() {
+    setDomainLoading(true);
+    try {
+      const { getDomainInfo } = await import('@/lib/db/actions/domain');
+      const info = await getDomainInfo();
+      setDomainInfo(info);
+      if (info) {
+        setDomainTracking({
+          openTracking: (info as any).open_tracking !== false,
+          clickTracking: (info as any).click_tracking !== false,
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load domain info');
+    } finally {
+      setDomainLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (integrations.resend?.encrypted_key) {
+      loadDomainInfo();
+    }
+  }, [integrations.resend?.encrypted_key]);
+
+  async function handleVerifyDomain() {
+    try {
+      const { verifyDomain } = await import('@/lib/db/actions/domain');
+      await verifyDomain();
+      toast.success('Domain verification requested');
+      await loadDomainInfo();
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Verification failed');
+    }
+  }
+
+  async function handleCreateDomain() {
+    const name = newDomainName.trim();
+    if (!name) return;
+    setDomainLoading(true);
+    try {
+      const { createDomain } = await import('@/lib/db/actions/domain');
+      await createDomain(name);
+      toast.success(`Domain "${name}" created in Resend`);
+      setShowCreateDomain(false);
+      setNewDomainName('');
+      await loadDomainInfo();
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create domain');
+    } finally {
+      setDomainLoading(false);
+    }
+  }
+
+  async function handleUpdateTracking(open: boolean, click: boolean) {
+    try {
+      const { updateDomainTracking } = await import('@/lib/db/actions/domain');
+      await updateDomainTracking(open, click);
+      setDomainTracking({ openTracking: open, clickTracking: click });
+      toast.success('Tracking settings updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update tracking');
+    }
+  }
+
+  async function handleAddProfile() {
+    if (!newProfile.display_name.trim() || !newProfile.email_prefix.trim()) return;
+    try {
+      const { addSenderProfile } = await import('@/lib/db/actions/domain');
+      await addSenderProfile({
+        id: `profile_${Date.now()}`,
+        display_name: newProfile.display_name.trim(),
+        email_prefix: newProfile.email_prefix.trim(),
+      });
+      setNewProfile({ display_name: '', email_prefix: '' });
+      setShowAddProfile(false);
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
+      toast.success('Sender profile added');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add profile');
+    }
+  }
+
+  async function handleRemoveProfile(id: string) {
+    try {
+      const { removeSenderProfile } = await import('@/lib/db/actions/domain');
+      await removeSenderProfile(id);
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
+      toast.success('Profile removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove profile');
+    }
+  }
+
+  async function handleSetDefaultProfile(id: string) {
+    try {
+      const { setDefaultSenderProfile } = await import('@/lib/db/actions/domain');
+      await setDefaultSenderProfile(id);
+      queryClient.invalidateQueries({ queryKey: ['agency-settings'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set default');
     }
   }
 
@@ -520,6 +637,50 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Inbox Source</p>
+                    <p className="text-xs text-muted-foreground">
+                      Choose which inbox to view in the app
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={user?.inbox_source === 'gmail' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={async () => {
+                      await setInboxSource('gmail');
+                      queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'gmail' }));
+                      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                      queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
+                      toast.success('Switched to Gmail inbox');
+                    }}
+                  >
+                    Gmail
+                  </Button>
+                  <Button
+                    variant={user?.inbox_source === 'custom_domain' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={async () => {
+                      await setInboxSource('custom_domain');
+                      queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'custom_domain' }));
+                      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                      queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
+                      toast.success('Switched to Custom Domain inbox');
+                    }}
+                  >
+                    Custom Domain
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Connected: mail.jonathansimpson.co
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -607,6 +768,197 @@ export default function SettingsPage() {
                   currentKey={integrations.openrouter?.encrypted_key ? '••••••••' : ''}
                   onSave={(key) => updateIntegration('openrouter', key)}
                 />
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-muted-foreground" />
+                      <h4 className="text-sm font-medium">Email Domain</h4>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={loadDomainInfo} disabled={domainLoading}>
+                      <RefreshCw className={`h-3 w-3 mr-1 ${domainLoading ? 'animate-spin' : ''}`} />
+                      {domainLoading ? 'Loading...' : 'Refresh'}
+                    </Button>
+                  </div>
+
+                  {domainInfo ? (
+                    <div className="space-y-3 rounded-md border p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{(domainInfo as any).name}</p>
+                          <Badge
+                            variant={(domainInfo as any).status === 'verified' ? 'default' : (domainInfo as any).status === 'pending' ? 'secondary' : 'destructive'}
+                            className="mt-1 text-[10px]"
+                          >
+                            {(domainInfo as any).status || 'unknown'}
+                          </Badge>
+                        </div>
+                        {(domainInfo as any).status !== 'verified' && (
+                          <Button variant="outline" size="sm" onClick={handleVerifyDomain}>
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Verify
+                          </Button>
+                        )}
+                      </div>
+
+                      {(domainInfo as any).records?.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">DNS Records</p>
+                          <div className="space-y-1">
+                            {(domainInfo as any).records.map((rec: any, i: number) => (
+                              <div key={i} className="flex items-start gap-2 text-xs font-mono bg-muted rounded p-2">
+                                <span className="text-muted-foreground shrink-0 w-8 uppercase">{rec.type}</span>
+                                <span className="break-all">{rec.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-4 pt-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-muted-foreground">Open Tracking</label>
+                          <Switch
+                            checked={domainTracking.openTracking}
+                            onCheckedChange={(checked) => handleUpdateTracking(checked, domainTracking.clickTracking)}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-muted-foreground">Click Tracking</label>
+                          <Switch
+                            checked={domainTracking.clickTracking}
+                            onCheckedChange={(checked) => handleUpdateTracking(domainTracking.openTracking, checked)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : integrations.resend?.encrypted_key ? (
+                    <div className="space-y-3">
+                      {showCreateDomain ? (
+                        <div className="rounded-md border p-3 space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Domain Name</Label>
+                            <Input
+                              placeholder="mail.jonathansimpson.co"
+                              value={newDomainName}
+                              onChange={(e) => setNewDomainName(e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleCreateDomain} disabled={domainLoading || !newDomainName.trim()}>
+                              {domainLoading ? 'Creating...' : 'Create'}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setShowCreateDomain(false)}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">No domain configured.</p>
+                          <Button variant="outline" size="sm" onClick={() => setShowCreateDomain(true)}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            Create
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={loadDomainInfo} disabled={domainLoading}>
+                            <RefreshCw className={`h-3 w-3 mr-1 ${domainLoading ? 'animate-spin' : ''}`} />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Save your Resend API key above to configure your sending domain.
+                    </p>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Sender Profiles</h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddProfile(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+
+                  {showAddProfile && (
+                    <div className="rounded-md border p-3 space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Display Name</Label>
+                        <Input
+                          placeholder="e.g. John Smith"
+                          value={newProfile.display_name}
+                          onChange={(e) => setNewProfile({ ...newProfile, display_name: e.target.value })}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Email Prefix</Label>
+                        <Input
+                          placeholder="e.g. john"
+                          value={newProfile.email_prefix}
+                          onChange={(e) => setNewProfile({ ...newProfile, email_prefix: e.target.value })}
+                          className="h-8 text-sm"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          Will send as {newProfile.email_prefix || '{prefix}'}@mail.jonathansimpson.co
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={handleAddProfile}>Add</Button>
+                        <Button variant="outline" size="sm" onClick={() => setShowAddProfile(false)}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    {(settings as any)?.sender_profiles?.length > 0 ? (
+                      (settings as any).sender_profiles.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                          <div className="flex items-center gap-3">
+                            <button
+                              className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${p.is_default ? 'border-primary' : 'border-muted-foreground'}`}
+                              onClick={() => handleSetDefaultProfile(p.id)}
+                            >
+                              {p.is_default && <div className="h-2 w-2 rounded-full bg-primary" />}
+                            </button>
+                            <div>
+                              <p className="text-sm">{p.display_name}</p>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                {p.email_prefix}@mail.jonathansimpson.co
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {p.is_default && (
+                              <span className="text-[10px] text-muted-foreground mr-2">Default</span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveProfile(p.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground py-2">
+                        No sender profiles configured. Default profiles will be used.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
