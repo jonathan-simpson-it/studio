@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInboxMessages, markMessageRead, archiveMessage, syncInboxNow, getThreadMessages, repairInbox } from '@/lib/db/actions/google';
 import { setInboxSource } from '@/lib/db/actions/inbound';
+import { getCurrentUser } from '@/lib/db/actions/settings';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -134,7 +135,7 @@ export default function InboxPage() {
 
   const { data: user } = useQuery({
     queryKey: ['user'],
-    queryFn: () => fetch('/api/auth/session').then(r => r.json()).then(d => d?.user || null),
+    queryFn: getCurrentUser,
   });
 
   const inboxSource: 'gmail' | 'custom_domain' = (user as any)?.inbox_source || 'gmail';
@@ -361,6 +362,7 @@ export default function InboxPage() {
                 }`}
                 onClick={async () => {
                   await setInboxSource('gmail');
+                  queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'gmail' }));
                   queryClient.invalidateQueries({ queryKey: ['inbox'] });
                   queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
                 }}
@@ -375,6 +377,7 @@ export default function InboxPage() {
                 }`}
                 onClick={async () => {
                   await setInboxSource('custom_domain');
+                  queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'custom_domain' }));
                   queryClient.invalidateQueries({ queryKey: ['inbox'] });
                   queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
                 }}

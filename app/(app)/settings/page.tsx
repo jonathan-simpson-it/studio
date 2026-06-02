@@ -638,49 +638,6 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Inbox Source</p>
-                    <p className="text-xs text-muted-foreground">
-                      Choose which inbox to view in the app
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={user?.inbox_source === 'gmail' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={async () => {
-                      await setInboxSource('gmail');
-                      queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'gmail' }));
-                      queryClient.invalidateQueries({ queryKey: ['inbox'] });
-                      queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
-                      toast.success('Switched to Gmail inbox');
-                    }}
-                  >
-                    Gmail
-                  </Button>
-                  <Button
-                    variant={user?.inbox_source === 'custom_domain' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={async () => {
-                      await setInboxSource('custom_domain');
-                      queryClient.setQueryData(['user'], (prev: any) => ({ ...prev, inbox_source: 'custom_domain' }));
-                      queryClient.invalidateQueries({ queryKey: ['inbox'] });
-                      queryClient.invalidateQueries({ queryKey: ['inbox-stats'] });
-                      toast.success('Switched to Custom Domain inbox');
-                    }}
-                  >
-                    Custom Domain
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Connected: mail.jonathansimpson.co
-                </p>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
 

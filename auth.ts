@@ -182,12 +182,16 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
+        await connect()
+        const dbUser = await User.findById(user.id).select('inbox_source').lean()
+        token.inbox_source = (dbUser as any)?.inbox_source || 'gmail'
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
+        ;(session.user as any).inbox_source = token.inbox_source as string
       }
       return session
     },

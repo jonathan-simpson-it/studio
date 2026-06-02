@@ -338,6 +338,11 @@ export async function syncInboxNow(options: SyncOptions = {}): Promise<{ totalSy
 
   await connect();
 
+  const user = await User.findById(session.user.id).lean({ virtuals: true });
+  if ((user as any)?.inbox_source === 'custom_domain') {
+    return { totalSynced: 0, labelsChecked: 0, errors: [] };
+  }
+
   const activeInboxes = await GoogleInbox.find({ user_id: session.user.id, is_active: true }).lean();
 
   let totalSynced = 0;
@@ -442,5 +447,13 @@ export async function repairInbox() {
   if (!session?.user?.id) throw new Error('Unauthorized');
 
   await connect();
+
+  const user = await User.findById(session.user.id).lean({ virtuals: true });
+  if ((user as any)?.inbox_source === 'custom_domain') {
+    const { InboundMessage } = await import('@/lib/db/models/inbound');
+    await InboundMessage.deleteMany({ user_id: session.user.id });
+    return;
+  }
+
   await InboxMessage.deleteMany({ user_id: session.user.id });
 }
