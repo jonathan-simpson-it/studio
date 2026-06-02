@@ -30,6 +30,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   Search,
   Plus,
@@ -48,6 +50,7 @@ export default function ClientsPage() {
   const [showInternal, setShowInternal] = useState(false);
   const [showNewSheet, setShowNewSheet] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const isMobile = useIsMobile();
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients', showInternal],
@@ -116,6 +119,28 @@ export default function ClientsPage() {
         </Sheet>
       </div>
 
+      {isMobile ? (
+        <MobileCardList
+          items={filtered}
+          keyExtractor={(c) => c.id}
+          onItemClick={(c) => router.push(`/clients/${c.id}`)}
+          renderCard={(c) => (
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{c.company_name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-muted-foreground">{c.contact_name}</span>
+                  {c.is_internal && <Badge variant="outline" className="text-[10px]">Internal</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {c.active_projects} project{c.active_projects !== 1 ? 's' : ''} · {formatCurrency(c.total_revenue || 0, c.currency_preference)}
+                </p>
+              </div>
+            </div>
+          )}
+          emptyMessage="No clients found"
+        />
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
@@ -158,7 +183,7 @@ export default function ClientsPage() {
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button variant="ghost" size="icon" className="h-9 w-9">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -175,6 +200,7 @@ export default function ClientsPage() {
           </table>
         </CardContent>
       </Card>
+      )}
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}

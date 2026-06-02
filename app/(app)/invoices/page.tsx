@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { formatCurrency } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
 import { Search, RefreshCw, Plus, Download } from 'lucide-react';
@@ -50,6 +52,7 @@ export default function InvoicesPage() {
   const [showNewSheet, setShowNewSheet] = useState(false);
   const [newInvoice, setNewInvoice] = useState({ client_id: '', currency: 'HKD', total: 0 });
   const [creating, setCreating] = useState(false);
+  const isMobile = useIsMobile();
 
   async function handleCheckOverdue() {
     setChecking(true);
@@ -232,6 +235,24 @@ export default function InvoicesPage() {
         </Sheet>
       </div>
 
+      {isMobile ? (
+        <MobileCardList
+          items={filtered}
+          keyExtractor={(inv) => inv.id}
+          onItemClick={(inv) => router.push(`/invoices/${inv.id}`)}
+          renderCard={(inv) => (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-mono text-muted-foreground">{inv.invoice_number}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <StatusBadge status={inv.status} />
+                <span className="text-xs font-medium">{formatCurrency(inv.total, inv.currency)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Due {inv.due_date || '—'}</p>
+            </div>
+          )}
+          emptyMessage="No invoices found"
+        />
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
@@ -248,18 +269,19 @@ export default function InvoicesPage() {
             <tbody>
               {filtered.map((inv) => (
                 <tr key={inv.id} className="border-b text-sm cursor-pointer hover:bg-accent/50" onClick={() => router.push(`/invoices/${inv.id}`)}>
-                  <td className="px-4 py-3 font-medium">{inv.invoice_number}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{inv.invoice_number}</td>
                   <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
                   <td className="px-4 py-3">{formatCurrency(inv.total, inv.currency)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{inv.issue_date}</td>
                   <td className="px-4 py-3 text-muted-foreground">{inv.due_date || '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{inv.paid_at ? formatCurrency(inv.total, inv.currency) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

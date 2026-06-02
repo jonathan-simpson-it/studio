@@ -12,6 +12,9 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { HeatScore } from '@/components/shared/HeatScore';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
 import { BoardToolbar } from '@/components/shared/BoardToolbar';
+import { MobileStageList } from '@/components/mobile/MobileStageList';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   Sheet,
   SheetContent,
@@ -155,7 +158,7 @@ function LeadTable({ leads, onDelete, isSelected, toggle, allSelected, selectAll
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button variant="ghost" size="icon" className="h-9 w-9">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -181,6 +184,7 @@ function LeadTable({ leads, onDelete, isSelected, toggle, allSelected, selectAll
 
 export default function LeadsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
     queryFn: getLeadsWithHeatScores,
@@ -191,6 +195,7 @@ export default function LeadsPage() {
   const [filterSource, setFilterSource] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
+  const isMobile = useIsMobile();
 
   const filtered = leads.filter((l) => {
     if (filterStage && filterStage !== '_all' && mapStage(l.stage) !== filterStage) return false;
@@ -344,7 +349,40 @@ export default function LeadsPage() {
         }
       />
 
-      {view === 'kanban' ? (
+      {isMobile ? (
+        view === 'kanban' ? (
+          <MobileStageList
+            stages={stages}
+            items={filtered}
+            getItemStage={(l) => mapStage(l.stage)}
+            renderCard={(lead) => <LeadCardContent lead={lead} />}
+            stageColors={columnColors}
+            emptyMessage="No leads"
+            stageEmptyMessage="No leads in this stage"
+          />
+        ) : (
+          <MobileCardList
+            items={filtered}
+            keyExtractor={(l) => l.id}
+            onItemClick={(l) => router.push(`/leads/${l.id}`)}
+            renderCard={(lead) => (
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{lead.company_name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <StatusBadge status={lead.stage} />
+                    <span className="text-xs text-muted-foreground">
+                      {lead.estimated_value > 0 ? formatCurrency(lead.estimated_value, lead.currency) : '—'}
+                    </span>
+                  </div>
+                </div>
+                <HeatScore score={lead.heat_score || 0} />
+              </div>
+            )}
+            emptyMessage="No leads found"
+          />
+        )
+      ) : view === 'kanban' ? (
         <KanbanBoard
           columns={stages}
           items={filtered}
@@ -434,7 +472,7 @@ function LeadForm({ onSubmit }: { onSubmit: (data: Partial<Lead>) => Promise<voi
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Source</Label>
           <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>

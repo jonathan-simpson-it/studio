@@ -15,6 +15,9 @@ import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
 import { BoardToolbar } from '@/components/shared/BoardToolbar';
+import { MobileStageList } from '@/components/mobile/MobileStageList';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import {
   Select,
@@ -209,12 +212,14 @@ function IssueTable({ tickets, founders }: { tickets: Ticket[]; founders: { id: 
 }
 
 export default function IssuesPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [showNewIssue, setShowNewIssue] = useState(false);
+  const isMobile = useIsMobile();
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['issues'],
@@ -331,7 +336,41 @@ export default function IssuesPage() {
         ]}
       />
 
-      {view === 'kanban' ? (
+      {isMobile ? (
+        view === 'kanban' ? (
+          <MobileStageList
+            stages={COLUMNS}
+            items={filtered}
+            getItemStage={(t) => t.status}
+            renderCard={(ticket) => <IssueCardContent ticket={ticket} founders={founders} />}
+            stageColors={columnColors}
+            emptyMessage="No issues"
+            stageEmptyMessage="No issues in this stage"
+          />
+        ) : (
+          <MobileCardList
+            items={filtered}
+            keyExtractor={(t) => t.id}
+            onItemClick={(t) => router.push(`/issues/${t.id}`)}
+            renderCard={(ticket) => (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono text-muted-foreground">{ticket.ticket_number}</span>
+                  <Badge variant="outline" className={`text-[9px] px-1 py-0 ${priorityColors[ticket.priority] || ''}`}>
+                    {ticket.priority}
+                  </Badge>
+                </div>
+                <p className="text-sm font-medium truncate">{ticket.title}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <StatusBadge status={ticket.status} />
+                  <span className="text-xs text-muted-foreground">{ticket.contact_name}</span>
+                </div>
+              </div>
+            )}
+            emptyMessage="No issues found"
+          />
+        )
+      ) : view === 'kanban' ? (
         <KanbanBoard
           columns={COLUMNS}
           items={filtered}

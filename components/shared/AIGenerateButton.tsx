@@ -50,9 +50,9 @@ export function AIGenerateButton({
     <Button
       type="button"
       variant="outline"
-      size="sm"
       onClick={handleGenerate}
       disabled={loading}
+      className="min-h-[44px]"
     >
       {loading ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

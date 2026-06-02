@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Proposals', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe('Proposals', () => {
   });
 
   test('proposals page loads with table', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3, span').filter({ hasText: /^Proposals$/ }).first()).toBeVisible();
+    await expect(page.locator('header h1').filter({ hasText: 'Proposals' })).toBeVisible();
   });
 
   test('search input is visible', async ({ page }) => {
@@ -22,7 +23,7 @@ test.describe('Proposals', () => {
   test('proposal row navigates to detail', async ({ page }) => {
     const row = page.locator('tbody tr').first();
     if (await row.isVisible().catch(() => false)) {
-      await row.click();
+      await row.click({ force: isMobile(page) });
       await page.waitForURL(/\/proposals\//);
       await page.waitForLoadState('networkidle');
       expect(page.url()).toMatch(/\/proposals\/[a-f0-9]+/);
@@ -32,7 +33,7 @@ test.describe('Proposals', () => {
   test('proposal detail shows status', async ({ page }) => {
     const row = page.locator('tbody tr').first();
     if (await row.isVisible().catch(() => false)) {
-      await row.click();
+      await row.click({ force: isMobile(page) });
       await page.waitForURL(/\/proposals\//);
       await page.waitForLoadState('networkidle');
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Clients', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,18 +8,20 @@ test.describe('Clients', () => {
   });
 
   test('clients page loads with table and search', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3, span').filter({ hasText: /^Clients$/ }).first()).toBeVisible();
+    await expect(page.locator('header h1').filter({ hasText: 'Clients' })).toBeVisible();
     await expect(page.locator('input[placeholder*="Search clients"]')).toBeVisible();
   });
 
   test('new client button opens sheet', async ({ page }) => {
-    await page.locator('button:has-text("New Client")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Client")').click({ force: mobile });
     await page.waitForTimeout(500);
     await expect(page.locator('text=New Client').first()).toBeVisible({ timeout: 3000 });
   });
 
   test('create client form has required fields', async ({ page }) => {
-    await page.locator('button:has-text("New Client")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Client")').click({ force: mobile });
     await page.waitForTimeout(500);
 
     await expect(page.locator('label:has-text("Company Name")')).toBeVisible();
@@ -27,15 +30,16 @@ test.describe('Clients', () => {
   });
 
   test('create client submits successfully', async ({ page }) => {
-    await page.locator('button:has-text("New Client")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Client")').click({ force: mobile });
     await page.waitForTimeout(500);
 
     const companyName = `Test Client ${Date.now()}`;
-    await page.locator('label:has-text("Company Name")').locator('..').locator('input').fill(companyName);
-    await page.locator('label:has-text("Contact Name")').locator('..').locator('input').fill('Jane Smith');
-    await page.locator('label:has-text("Email")').locator('..').locator('input').fill('jane@testclient.com');
+    await page.locator('label:has-text("Company Name")').locator('..').locator('input').fill(companyName, { force: mobile });
+    await page.locator('label:has-text("Contact Name")').locator('..').locator('input').fill('Jane Smith', { force: mobile });
+    await page.locator('label:has-text("Email")').locator('..').locator('input').fill('jane@testclient.com', { force: mobile });
 
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"]').click({ force: mobile });
     await page.waitForTimeout(1000);
 
     const toast = page.locator('[data-sonner-toast]');
@@ -47,7 +51,7 @@ test.describe('Clients', () => {
   test('client rows navigate to detail on click', async ({ page }) => {
     const clientRow = page.locator('tbody tr').first();
     if (await clientRow.isVisible().catch(() => false)) {
-      await clientRow.click();
+      await clientRow.click({ force: isMobile(page) });
       await page.waitForURL(/\/clients\//);
       await page.waitForLoadState('networkidle');
       expect(page.url()).toMatch(/\/clients\/[a-f0-9]+/);
@@ -57,7 +61,7 @@ test.describe('Clients', () => {
   test('client detail page has tabs', async ({ page }) => {
     const clientRow = page.locator('tbody tr').first();
     if (await clientRow.isVisible().catch(() => false)) {
-      await clientRow.click();
+      await clientRow.click({ force: isMobile(page) });
       await page.waitForURL(/\/clients\//);
       await page.waitForLoadState('networkidle');
 
@@ -72,12 +76,12 @@ test.describe('Clients', () => {
   });
 
   test('delete client dropdown exists', async ({ page }) => {
+    const mobile = isMobile(page);
     const rows = page.locator('tbody tr');
     if (await rows.count() > 0) {
-      // Find the MoreHorizontal button in the last column
       const moreBtn = rows.first().locator('button');
       if (await moreBtn.isVisible().catch(() => false)) {
-        await moreBtn.click();
+        await moreBtn.click({ force: mobile });
         await page.waitForTimeout(300);
         const deleteItem = page.locator('[role="menuitem"]').filter({ hasText: /Delete/i });
         await expect(deleteItem).toBeVisible();

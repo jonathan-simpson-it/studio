@@ -74,6 +74,17 @@ export default async function globalSetup() {
     throw new Error('Login failed in global setup — still on login page');
   }
 
+  // Dismiss onboarding tour if it appears
+  await page.waitForTimeout(1000);
+  const skipTourBtn = page.locator('button').filter({ hasText: 'Skip tour' });
+  if (await skipTourBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await skipTourBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Mark onboarding as complete in localStorage
+  await page.evaluate(() => localStorage.setItem('studio-onboarding-complete', 'true'));
+
   // Store session state for reuse across tests
   await page.context().storageState({ path: path.resolve(__dirname, '.auth.json') });
 

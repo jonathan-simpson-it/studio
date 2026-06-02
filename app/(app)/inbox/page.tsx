@@ -413,7 +413,7 @@ export default function InboxPage() {
             <button
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
-              className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+              className={`px-3 py-2.5 text-sm rounded-full transition-colors ${
                 isActive
                   ? 'bg-primary text-primary-foreground font-medium'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -506,30 +506,30 @@ export default function InboxPage() {
                     <span className="text-xs text-muted-foreground group-hover:opacity-0 transition-opacity duration-150">
                       {relativeTime(msg.received_at)}
                     </span>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    <div className="md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 ml-2 md:ml-0">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-9 w-9"
                         onClick={(e) => { e.stopPropagation(); handleArchive(msg._id); }}
                       >
-                        <Archive className="h-3.5 w-3.5" />
+                        <Archive className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-9 w-9"
                         onClick={(e) => handleSnooze(e, msg._id)}
                       >
-                        <Clock className="h-3.5 w-3.5" />
+                        <Clock className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-9 w-9"
                         onClick={(e) => handleMarkDone(e, msg._id)}
                       >
-                        <CheckCheck className="h-3.5 w-3.5" />
+                        <CheckCheck className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

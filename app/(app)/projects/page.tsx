@@ -29,6 +29,8 @@ import {
   GitBranch,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Project, Client } from '@/types';
@@ -49,6 +51,7 @@ export default function ProjectsPage() {
   const [filterClient, setFilterClient] = useState('');
   const [filterOwner, setFilterOwner] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
+  const isMobile = useIsMobile();
 
   const projects = useMemo(
     () =>
@@ -118,6 +121,24 @@ export default function ProjectsPage() {
         </Sheet>
       </div>
 
+      {isMobile ? (
+        <MobileCardList
+          items={filtered}
+          keyExtractor={(p) => p.id}
+          onItemClick={(p) => router.push(`/projects/${p.id}`)}
+          renderCard={(p) => (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">{p.name}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <StatusBadge status={p.status} />
+                <span className="text-xs text-muted-foreground">{p.client_name}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{p.billing_type || '—'} · {p.repo_count || 0} repos</p>
+            </div>
+          )}
+          emptyMessage="No projects found"
+        />
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
@@ -146,6 +167,7 @@ export default function ProjectsPage() {
           </table>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

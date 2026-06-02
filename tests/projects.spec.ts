@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Projects', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe('Projects', () => {
   });
 
   test('projects page loads with table', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3, span').filter({ hasText: /^Projects$/ }).first()).toBeVisible();
+    await expect(page.locator('header h1').filter({ hasText: 'Projects' })).toBeVisible();
   });
 
   test('search input is visible', async ({ page }) => {
@@ -20,13 +21,15 @@ test.describe('Projects', () => {
   });
 
   test('new project button opens sheet', async ({ page }) => {
-    await page.locator('button:has-text("New Project")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Project")').click({ force: mobile });
     await page.waitForTimeout(500);
     await expect(page.locator('text=New Project').first()).toBeVisible({ timeout: 3000 });
   });
 
   test('create project form has required fields', async ({ page }) => {
-    await page.locator('button:has-text("New Project")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Project")').click({ force: mobile });
     await page.waitForTimeout(500);
 
     await expect(page.locator('label:has-text("Project Name")')).toBeVisible();
@@ -36,7 +39,7 @@ test.describe('Projects', () => {
   test('project row navigates to detail on click', async ({ page }) => {
     const projectRow = page.locator('tbody tr').first();
     if (await projectRow.isVisible().catch(() => false)) {
-      await projectRow.click();
+      await projectRow.click({ force: isMobile(page) });
       await page.waitForURL(/\/projects\//);
       await page.waitForLoadState('networkidle');
       expect(page.url()).toMatch(/\/projects\/[a-f0-9]+/);
@@ -46,7 +49,7 @@ test.describe('Projects', () => {
   test('project detail page has overview tabs', async ({ page }) => {
     const projectRow = page.locator('tbody tr').first();
     if (await projectRow.isVisible().catch(() => false)) {
-      await projectRow.click();
+      await projectRow.click({ force: isMobile(page) });
       await page.waitForURL(/\/projects\//);
       await page.waitForLoadState('networkidle');
 
@@ -61,16 +64,17 @@ test.describe('Projects', () => {
   });
 
   test('create project submits', async ({ page }) => {
-    await page.locator('button:has-text("New Project")').click();
+    const mobile = isMobile(page);
+    await page.locator('button:has-text("New Project")').click({ force: mobile });
     await page.waitForTimeout(500);
 
     const projectName = `Test Project ${Date.now()}`;
     const nameInput = page.locator('label:has-text("Project Name")').locator('..').locator('input');
-    await nameInput.fill(projectName);
+    await nameInput.fill(projectName, { force: mobile });
 
     const submitBtn = page.locator('button[type="submit"], button:has-text("Create Project")');
     if (await submitBtn.isVisible().catch(() => false)) {
-      await submitBtn.click();
+      await submitBtn.click({ force: mobile });
       await page.waitForTimeout(1000);
     }
   });

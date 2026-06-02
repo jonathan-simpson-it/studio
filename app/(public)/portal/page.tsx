@@ -390,8 +390,8 @@ export default function PortalPage() {
                 </div>
 
                 <Card>
-                  <CardContent className="p-0">
-                    <table className="w-full">
+                  <CardContent className="p-0 overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
                       <thead>
                         <tr className="border-b text-left text-xs text-muted-foreground">
                           <th className="px-4 py-3 font-medium">Ticket</th>
@@ -665,7 +665,7 @@ function CodeStep({
                   onChange={(e) => onCodeInput(e.target.value, i)}
                   onKeyDown={(e) => onCodeKeyDown(e, i)}
                   onPaste={(e) => onCodePaste(e, i)}
-                  className="w-10 h-12 text-center text-lg font-mono font-semibold rounded-lg border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
+                  className="w-12 h-14 md:w-10 md:h-12 text-center text-lg font-mono font-semibold rounded-lg border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                   autoFocus={i === 0}
                   aria-label={`Digit ${i + 1}`}
                 />

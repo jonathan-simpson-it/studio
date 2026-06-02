@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { MobileCardList } from '@/components/mobile/MobileCardList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { Search, Plus } from 'lucide-react';
 
@@ -18,6 +20,7 @@ export default function ProposalsPage() {
     queryFn: listProposals,
   });
   const [search, setSearch] = useState('');
+  const isMobile = useIsMobile();
 
   const filtered = proposals.filter((p) =>
     p.proposal_number.toLowerCase().includes(search.toLowerCase())
@@ -33,6 +36,24 @@ export default function ProposalsPage() {
         <Button onClick={() => router.push('/proposals')}><Plus className="mr-2 h-4 w-4" /> New Proposal</Button>
       </div>
 
+      {isMobile ? (
+        <MobileCardList
+          items={filtered}
+          keyExtractor={(p) => p.id}
+          onItemClick={(p) => router.push(`/proposals/${p.id}`)}
+          renderCard={(p) => (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-mono text-muted-foreground">{p.proposal_number}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <StatusBadge status={p.status} />
+                <span className="text-xs font-medium">{formatCurrency(p.total, p.currency)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{formatDate(p.created_at)}</p>
+            </div>
+          )}
+          emptyMessage="No proposals found"
+        />
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full">
@@ -63,6 +84,7 @@ export default function ProposalsPage() {
           </table>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Invoices', () => {
   test.beforeEach(async ({ page }) => {
@@ -15,15 +16,15 @@ test.describe('Invoices', () => {
   });
 
   test('new invoice button opens creation sheet', async ({ page }) => {
+    const mobile = isMobile(page);
     const newBtn = page.locator('button').filter({ hasText: /New Invoice/i });
     await expect(newBtn).toBeVisible();
-    await newBtn.click();
+    await newBtn.click({ force: mobile });
     await page.waitForTimeout(500);
     await expect(page.getByRole('dialog', { name: 'New Invoice' })).toBeVisible({ timeout: 3000 });
   });
 
   test('invoice page renders list', async ({ page }) => {
-    // Page should render even if empty
     const main = page.locator('main');
     await expect(main).toBeVisible();
   });
@@ -38,7 +39,7 @@ test.describe('Invoices', () => {
   test('invoice row navigates to detail', async ({ page }) => {
     const invoiceLink = page.locator('a[href*="/invoices/"]').first();
     if (await invoiceLink.isVisible().catch(() => false)) {
-      await invoiceLink.click();
+      await invoiceLink.click({ force: isMobile(page) });
       await page.waitForURL(/\/invoices\//);
       await page.waitForLoadState('networkidle');
       expect(page.url()).toMatch(/\/invoices\/[a-f0-9]+/);

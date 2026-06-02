@@ -124,10 +124,10 @@ export function FileUpload({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
                   onClick={() => handleDelete(file.path)}
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             </div>

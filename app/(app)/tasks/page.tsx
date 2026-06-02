@@ -15,6 +15,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KanbanBoard } from '@/components/shared/KanbanBoard';
+import { MobileStageList } from '@/components/mobile/MobileStageList';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { BoardToolbar } from '@/components/shared/BoardToolbar';
 import {
   Select,
@@ -145,6 +147,7 @@ function TaskTable({ tasks, founders }: { tasks: Task[]; founders: { id: string;
 
 export default function TasksPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks'],
@@ -160,6 +163,7 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showNewSheet, setShowNewSheet] = useState(false);
+  const isMobile = useIsMobile();
 
   const filtered = tasks.filter((t) => {
     if (filterPriority && filterPriority !== '_all' && t.priority !== filterPriority) return false;
@@ -246,7 +250,53 @@ export default function TasksPage() {
         }
       />
 
-      {view === 'board' ? (
+      {isMobile ? (
+        view === 'board' ? (
+          <MobileStageList
+            stages={columns}
+            items={filtered}
+            getItemStage={(t) => t.status}
+            renderCard={(task) => <TaskCardContent task={task} founders={founders} />}
+            stageColors={columnColors}
+            emptyMessage="No tasks"
+            stageEmptyMessage="No tasks in this stage"
+          />
+        ) : (
+          <div className="divide-y divide-border">
+            {filtered.map((t) => {
+              const assignees = founders.filter((f) => t.assignee_ids?.includes(f.id));
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-3 px-4 py-3 min-h-[56px] cursor-pointer active:bg-accent/50 transition-colors"
+                  onClick={() => router.push(`/tasks/${t.id}`)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{t.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant="outline" className={`text-[10px] ${priorityStyles[t.priority] || ''}`}>
+                        {t.priority}
+                      </Badge>
+                      <StatusBadge status={t.status} />
+                      {t.due_date && <span className="text-xs text-muted-foreground">Due {formatDate(t.due_date)}</span>}
+                    </div>
+                  </div>
+                  {assignees.length > 0 && (
+                    <div className="flex -space-x-1.5 shrink-0">
+                      {assignees.slice(0, 2).map((f) => (
+                        <Avatar key={f.id} className="h-6 w-6 border border-background">
+                          <AvatarImage src={f.avatar_url || undefined} alt={f.name} />
+                          <AvatarFallback className="text-[9px]">{f.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : view === 'board' ? (
         <KanbanBoard
           columns={columns}
           items={filtered}

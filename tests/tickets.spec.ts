@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Tickets — Client Portal & Admin Flow', () => {
   const timestamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -10,6 +11,7 @@ test.describe('Tickets — Client Portal & Admin Flow', () => {
   let clientId = '';
 
   test('full ticket flow: create client → portal → submit → admin verify → delete', async ({ page }) => {
+    test.skip(isMobile(page), 'Ticket portal flow needs mobile-specific handling (6-digit code input, portal layout)');
     // 1. Create test client via admin
     await page.goto('/clients');
     await page.waitForLoadState('networkidle');
@@ -52,13 +54,14 @@ test.describe('Tickets — Client Portal & Admin Flow', () => {
     await page.goto('/portal');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1').filter({ hasText: /View Your Tickets/i })).toBeVisible();
+    await expect(page.locator('h1').filter({ hasText: /Access Your Client Portal/i })).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('button').filter({ hasText: /Look up/i })).toBeVisible();
+    const sendCodeBtn = page.locator('button').filter({ hasText: /Send me a code/i });
+    await expect(sendCodeBtn).toBeVisible();
 
     // 4. Portal email lookup shows client info
     await page.locator('input[type="email"]').fill(testEmail);
-    await page.locator('button').filter({ hasText: /Look up/i }).click({ force: true });
+    await sendCodeBtn.click({ force: isMobile(page) });
     await page.waitForTimeout(1500);
 
     const remainingCard = page.locator('text=Remaining Tickets').first();

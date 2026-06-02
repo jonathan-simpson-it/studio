@@ -207,7 +207,7 @@ We look forward to the opportunity to work with you.
           <p className="text-sm text-muted-foreground">{formatCurrency(totalDisplay, proposal.currency)}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SmartFillButton
             action="parse-proposal"
             context={{
@@ -301,21 +301,25 @@ We look forward to the opportunity to work with you.
             </div>
             <div className="space-y-2">
               {lineItems.map((item, i) => (
-                <div key={i} className="flex items-start gap-2 rounded-md border p-3">
-                  <div className="flex-1 space-y-2">
+                <div key={i} className="flex flex-col sm:flex-row items-start gap-2 rounded-md border p-3">
+                  <div className="w-full sm:flex-1 space-y-2">
                     <Input placeholder="Service name" value={item.service} onChange={(e) => updateLineItem(i, 'service', e.target.value)} />
                     <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(i, 'description', e.target.value)} />
                   </div>
-                  <div className="w-20 space-y-2">
-                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => updateLineItem(i, 'quantity', parseInt(e.target.value) || 0)} />
-                    <Input type="number" placeholder="Price" value={item.unit_price} onChange={(e) => updateLineItem(i, 'unit_price', parseFloat(e.target.value) || 0)} />
+                  <div className="flex w-full sm:w-auto gap-2">
+                    <div className="flex-1 sm:w-20 space-y-2">
+                      <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => updateLineItem(i, 'quantity', parseInt(e.target.value) || 0)} />
+                      <Input type="number" placeholder="Price" value={item.unit_price} onChange={(e) => updateLineItem(i, 'unit_price', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="flex items-center gap-2 sm:block">
+                      <div className="w-20 sm:w-24 pt-0 sm:pt-6 text-sm text-right self-center">
+                        {formatCurrency(item.total, proposal.currency)}
+                      </div>
+                      <Button variant="ghost" size="icon" className="self-center" onClick={() => removeLineItem(i)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="w-24 pt-6 text-sm text-right">
-                    {formatCurrency(item.total, proposal.currency)}
-                  </div>
-                  <Button variant="ghost" size="icon" className="mt-6" onClick={() => removeLineItem(i)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
               ))}
             </div>

@@ -187,7 +187,7 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
           <span>Created {formatDate(note.created_at)}</span>
           {note.updated_at !== note.created_at && <span>Edited {formatDate(note.updated_at)}</span>}
           <Select value={note.visibility} onValueChange={(v) => handleSave('visibility', v)}>
-            <SelectTrigger className="w-28 h-7 text-xs">
+            <SelectTrigger className="w-28 min-h-[44px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -204,7 +204,7 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
             <Badge key={tag} variant="secondary" className="text-xs gap-1">
               {tag}
               <button
-                className="text-muted-foreground hover:text-foreground leading-none"
+                className="text-muted-foreground hover:text-foreground leading-none min-w-[22px] min-h-[22px] flex items-center justify-center"
                 onClick={() => handleRemoveTag(tag)}
               >
                 &times;
@@ -214,7 +214,7 @@ export default function NoteDetailPage({ params }: { params: Promise<{ id: strin
           <div className="relative">
             <input
               ref={tagInputRef}
-              className="h-6 w-20 rounded-md border border-input bg-transparent px-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+              className="h-9 min-h-[44px] w-20 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
               placeholder="+tag"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}

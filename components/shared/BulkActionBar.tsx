@@ -15,20 +15,20 @@ export function BulkActionBar({ count, onClear, onDelete, actions }: BulkActionB
   if (count === 0) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center border-t bg-background px-4 py-3 shadow-lg md:left-60 md:bottom-auto md:top-14 md:border-b md:border-t-0">
+    <div className="fixed bottom-14 left-0 right-0 z-50 flex items-center justify-center border-t bg-background px-4 py-3 shadow-lg md:left-60 md:bottom-auto md:top-14 md:border-b md:border-t-0" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium">{count} selected</span>
-        <Button variant="ghost" size="sm" onClick={onClear} aria-label="Clear selection">
+        <Button variant="ghost" onClick={onClear} aria-label="Clear selection">
           <X className="h-4 w-4 mr-1" /> Clear
         </Button>
         <div className="flex items-center gap-2">
           {actions?.map((action) => (
-            <Button key={action.label} variant="secondary" size="sm" onClick={action.onClick}>
+            <Button key={action.label} variant="secondary" onClick={action.onClick}>
               {action.label}
             </Button>
           ))}
           {onDelete && (
-            <Button variant="destructive" size="sm" onClick={onDelete}>
+            <Button variant="destructive" onClick={onDelete}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
           )}

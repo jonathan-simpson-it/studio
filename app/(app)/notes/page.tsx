@@ -22,8 +22,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import { MarkdownPreview } from '@/components/shared/MarkdownPreview';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { formatDate } from '@/lib/utils';
 import {
   Search, Plus, Lock, Globe, MoreHorizontal, Trash2,
@@ -239,6 +247,8 @@ export default function NotesPage() {
 
 function NoteCard({ note, onDelete }: { note: Note; onDelete: (n: Note) => void }) {
   const router = useRouter();
+  const isMobile = useIsMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <Card
@@ -254,18 +264,37 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: (n: Note) => void 
           <div className="flex items-center gap-1 shrink-0">
             {note.visibility === 'private' && <Lock className="h-3 w-3 text-muted-foreground" />}
             {note.visibility === 'internal' && <Globe className="h-3 w-3 text-muted-foreground" />}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem className="text-destructive" onClick={() => onDelete(note)}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {isMobile ? (
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="p-4" onClick={(e) => e.stopPropagation()}>
+                  <SheetHeader><SheetTitle className="sr-only">Note options</SheetTitle></SheetHeader>
+                  <button
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                    onClick={() => { onDelete(note); setSheetOpen(false); }}
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete Note
+                  </button>
+                </SheetContent>
+              </Sheet>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem className="text-destructive" onClick={() => onDelete(note)}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
         {note.body && (

@@ -521,25 +521,25 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-9 w-9"
                             disabled={syncingRepo === r.id}
                             onClick={() => handleSyncRepo(r.id)}
                             title="Sync issues"
                           >
                             {justSynced === r.id ? (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-green-500 transition-all duration-300" />
+                              <CheckCircle2 className="h-4 w-4 text-green-500 transition-all duration-300" />
                             ) : (
-                              <RefreshCw className={`h-3.5 w-3.5 ${syncingRepo === r.id ? 'animate-spin' : ''}`} />
+                              <RefreshCw className={`h-4 w-4 ${syncingRepo === r.id ? 'animate-spin' : ''}`} />
                             )}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-9 w-9 text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             title="Unlink repository"
                             onClick={() => setConfirmUnlink(r.id)}
                           >
-                            <Unlink className="h-3.5 w-3.5" />
+                            <Unlink className="h-4 w-4" />
                           </Button>
                           {confirmUnlink === r.id && (
                             <div className="absolute right-0 top-8 z-50 flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
@@ -739,18 +739,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <div className="group relative cursor-pointer" onClick={() => router.push(`/tasks/${task.id}`)}>
                   <div className="flex items-start justify-between">
                     <p className="text-sm font-medium">{task.title}</p>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
+                    <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-1 shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditTask(task); }}
-                        className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent"
+                        className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-accent"
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
-                        className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive"
+                        className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -807,11 +807,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         </td>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setEditTask(t)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent">
-                              <Pencil className="h-3 w-3" />
+                            <button onClick={() => setEditTask(t)} className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-accent">
+                              <Pencil className="h-4 w-4" />
                             </button>
-                            <button onClick={() => handleDeleteTask(t.id)} className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
-                              <Trash2 className="h-3 w-3" />
+                            <button onClick={() => handleDeleteTask(t.id)} className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                         </td>
@@ -917,10 +917,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs text-muted-foreground w-8 text-right">{pct}%</span>
-                      <button onClick={() => setEditMilestone(m)} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent">
+                      <button onClick={() => setEditMilestone(m)} className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-accent">
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handleDeleteMilestone(m.id)} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
+                      <button onClick={() => handleDeleteMilestone(m.id)} className="h-9 w-9 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>

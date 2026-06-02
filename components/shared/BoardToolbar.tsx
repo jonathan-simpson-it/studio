@@ -48,8 +48,8 @@ export function BoardToolbar({
   onExport,
 }: BoardToolbarProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2 md:gap-4">
         {onExport && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -60,18 +60,18 @@ export function BoardToolbar({
             <TooltipContent>Export to CSV</TooltipContent>
           </Tooltip>
         )}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-64 pl-9"
+            className="w-full sm:w-64 pl-9"
           />
         </div>
         {filters?.map((filter) => (
           <Select key={filter.key} value={filter.value} onValueChange={filter.onChange}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-full sm:w-32">
               <SelectValue placeholder={filter.placeholder} />
             </SelectTrigger>
             <SelectContent>

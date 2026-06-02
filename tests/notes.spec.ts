@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Notes', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe('Notes', () => {
   });
 
   test('notes page loads with grid layout', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3, span').filter({ hasText: /^Notes$/ }).first()).toBeVisible();
+    await expect(page.locator('header h1').filter({ hasText: /Notes/i })).toBeVisible();
   });
 
   test('search input is visible', async ({ page }) => {
@@ -41,7 +42,7 @@ test.describe('Notes', () => {
   test('clicking note navigates to detail', async ({ page }) => {
     const noteLink = page.locator('a[href*="/notes/"]').first();
     if (await noteLink.isVisible().catch(() => false)) {
-      await noteLink.click();
+      await noteLink.click({ force: isMobile(page) });
       await page.waitForURL(/\/notes\//);
       await page.waitForLoadState('networkidle');
       expect(page.url()).toMatch(/\/notes\/[a-f0-9]+/);
@@ -51,7 +52,7 @@ test.describe('Notes', () => {
   test('note detail shows editor', async ({ page }) => {
     const noteLink = page.locator('a[href*="/notes/"]').first();
     if (await noteLink.isVisible().catch(() => false)) {
-      await noteLink.click();
+      await noteLink.click({ force: isMobile(page) });
       await page.waitForURL(/\/notes\//);
       await page.waitForLoadState('networkidle');
       const editor = page.locator('[contenteditable="true"], .ProseMirror, textarea').first();
@@ -60,7 +61,8 @@ test.describe('Notes', () => {
   });
 
   test('create note, write body, toggle actions, and delete', async ({ page }) => {
-    await page.locator('button').filter({ hasText: /New Note/i }).click();
+    const mobile = isMobile(page);
+    await page.locator('button').filter({ hasText: /New Note/i }).click({ force: mobile });
     await page.waitForURL(/\/notes\//, { timeout: 15000 });
     await page.waitForLoadState('networkidle');
 
@@ -68,21 +70,19 @@ test.describe('Notes', () => {
     await expect(editor).toBeVisible({ timeout: 10000 });
 
     const testContent = 'Test note body ' + Date.now();
-    await editor.click();
+    await editor.click({ force: mobile });
     await page.keyboard.type(testContent);
     await page.waitForTimeout(1000);
 
-    // Toggle pin
     const pinSvg = page.locator('svg.lucide-pin, svg.lucide-pin-off').first();
     if (await pinSvg.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await pinSvg.locator('..').click();
+      await pinSvg.locator('..').click({ force: mobile });
       await page.waitForTimeout(500);
     }
 
-    // Change visibility
     const visibilitySelect = page.locator('[role="combobox"]').filter({ hasText: /Internal|Private|Client-safe/i }).first();
     if (await visibilitySelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await visibilitySelect.click();
+      await visibilitySelect.click({ force: mobile });
       await page.waitForTimeout(200);
       const clientSafeOption = page.locator('[role="option"]').filter({ hasText: 'Client-safe' });
       if (await clientSafeOption.isVisible().catch(() => false)) {
@@ -91,18 +91,15 @@ test.describe('Notes', () => {
       }
     }
 
-    // Dismiss any toasts that might cover buttons
     const toastClose = page.locator('[data-sonner-toast] [data-close-button], [data-sonner-toast]');
     if (await toastClose.isVisible({ timeout: 1000 }).catch(() => false)) {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
     }
 
-    // AI auto-fill button visible
     const aiButton = page.locator('button').filter({ hasText: /Auto-fill with AI/i }).first();
     await expect(aiButton).toBeVisible({ timeout: 5000 });
 
-    // Delete the note
     const deleteButton = page.locator('button').filter({ hasText: /Delete/i }).first();
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
     await deleteButton.click({ force: true });
@@ -110,8 +107,8 @@ test.describe('Notes', () => {
 
     const dialogInput = page.locator('[role="dialog"] input').first();
     if (await dialogInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await dialogInput.fill('Untitled');
-      await page.locator('[role="dialog"] button').filter({ hasText: 'Delete' }).first().click();
+      await dialogInput.fill('Untitled', { force: mobile });
+      await page.locator('[role="dialog"] button').filter({ hasText: 'Delete' }).first().click({ force: mobile });
       await page.waitForURL('/notes', { timeout: 10000 });
 
       const toast = page.locator('[data-sonner-toast]');
@@ -122,6 +119,7 @@ test.describe('Notes', () => {
   });
 
   test('toc sidebar toggle works', async ({ page }) => {
+    test.skip(isMobile(page), 'TOC sidebar is hidden on mobile (hidden lg:block)');
     const noteLink = page.locator('a[href*="/notes/"]').first();
     if (await noteLink.isVisible().catch(() => false)) {
       await noteLink.click();

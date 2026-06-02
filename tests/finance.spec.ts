@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isMobile } from './helpers';
 
 test.describe('Finance', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe('Finance', () => {
   });
 
   test('finance page loads', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3, span').filter({ hasText: /^Finance$/ }).first()).toBeVisible();
+    await expect(page.locator('header h1').filter({ hasText: 'Finance' })).toBeVisible();
   });
 
   test('summary cards are visible', async ({ page }) => {
@@ -35,7 +36,6 @@ test.describe('Finance', () => {
   });
 
   test('quarterly chart section renders', async ({ page }) => {
-    // Recharts renders SVG elements
     const chartSvg = page.locator('svg.recharts-surface, .recharts-wrapper');
     if (await chartSvg.isVisible().catch(() => false)) {
       await expect(chartSvg).toBeVisible();
